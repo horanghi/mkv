@@ -1,0 +1,1023 @@
+<title>마령촌 GRIMHOLLOW</title>
+
+<style>
+  :root {
+    --ink:      #0B0710;
+    --panel:    #150E1C;
+    --panel-2:  #1D1428;
+    --line:     #2E2140;
+    --line-2:   #43315C;
+    --text:     #D6CADF;
+    --dim:      #8B7C9B;
+    --gold:     #F0C04A;
+    --gold-dim: #8A6C28;
+    --phos:     #A86FF2;
+    --blood:    #E2455A;
+    --bone:     #EDE6D8;
+
+    --display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Nanum Myeongjo', 'AppleMyungjo', Georgia, serif;
+    --body: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
+    --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'D2Coding', monospace;
+
+    --wrap: 1080px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      repeating-linear-gradient(0deg, rgba(168,111,242,.028) 0 1px, transparent 1px 16px),
+      repeating-linear-gradient(90deg, rgba(168,111,242,.028) 0 1px, transparent 1px 16px),
+      radial-gradient(120% 70% at 50% 0%, #17102180 0%, transparent 60%),
+      var(--ink);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    word-break: keep-all;        /* 한글은 어절 단위로 끊는다 */
+    overflow-wrap: break-word;   /* 긴 영문·코드는 예외적으로 허용 */
+  }
+
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- type ---------- */
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; font-weight: 700; }
+  h2 { font-size: clamp(1.6rem, 3.2vw, 2.3rem); letter-spacing: -.01em; line-height: 1.2; }
+  h3 { font-size: 1.12rem; letter-spacing: .01em; }
+  p { margin: 0; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+  }
+  .lede { color: var(--dim); max-width: 62ch; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- hero ---------- */
+  header.hero {
+    padding: clamp(56px, 9vw, 104px) 0 clamp(40px, 6vw, 72px);
+    border-bottom: 1px solid var(--line);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
+    gap: clamp(32px, 5vw, 64px);
+    align-items: center;
+  }
+  @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } }
+
+  .title-jp {
+    font-family: var(--display);
+    font-size: clamp(3.4rem, 11vw, 6.2rem);
+    line-height: .92;
+    letter-spacing: .04em;
+    color: var(--bone);
+    margin: 14px 0 0;
+    text-shadow: 0 0 34px rgba(240,192,74,.16);
+  }
+  .title-en {
+    font-family: var(--mono);
+    font-size: clamp(.82rem, 2.2vw, 1.05rem);
+    letter-spacing: .46em;
+    color: var(--gold);
+    margin-top: 14px;
+    padding-left: .3em;
+  }
+  .rule-gold {
+    height: 1px; width: 100%;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--phos) 42%, transparent 100%);
+    margin: 26px 0 22px;
+    opacity: .55;
+  }
+  .thesis {
+    font-family: var(--display);
+    font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+    line-height: 1.45;
+    color: var(--bone);
+    max-width: 24ch;
+  }
+  .thesis em { color: var(--gold); font-style: normal; }
+  .hero-meta {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 26px;
+  }
+  .chip {
+    font-family: var(--mono); font-size: .7rem; letter-spacing: .08em;
+    padding: 5px 10px;
+    border: 1px solid var(--line-2);
+    color: var(--dim);
+    background: var(--panel);
+  }
+
+  /* ---------- demo ---------- */
+  .demo { display: flex; flex-direction: column; gap: 12px; }
+  .demo-frame {
+    position: relative;
+    border: 1px solid var(--line-2);
+    background: #06040A;
+    padding: 10px;
+    box-shadow: 0 0 0 1px #00000080, 0 24px 60px -30px #000;
+  }
+  #stage {
+    display: block; width: 100%; height: auto;
+    image-rendering: pixelated;
+    cursor: pointer;
+  }
+  .demo-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-family: var(--mono); font-size: .7rem; letter-spacing: .1em;
+    color: var(--dim);
+  }
+  button.strike {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .14em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--gold);
+    border: 1px solid var(--gold-dim);
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: background .16s ease, color .16s ease;
+  }
+  button.strike:hover { background: var(--gold); color: #120C05; }
+  button.strike:focus-visible { outline: 2px solid var(--phos); outline-offset: 2px; }
+  button.strike[disabled] { opacity: .38; cursor: default; }
+  button.strike[disabled]:hover { background: transparent; color: var(--gold); }
+
+  /* ---------- sections ---------- */
+  section { padding: clamp(52px, 7vw, 88px) 0; border-bottom: 1px solid var(--line); }
+  .sec-head { display: flex; flex-direction: column; gap: 10px; margin-bottom: 36px; max-width: 68ch; }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 22px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .card p { font-size: .92rem; color: var(--dim); }
+  .card h3 { color: var(--bone); }
+  .axis-mark {
+    font-family: var(--mono); font-size: .68rem; letter-spacing: .18em;
+    color: var(--phos);
+  }
+
+  /* armor chain */
+  .chain { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .link {
+    flex: 1 1 160px;
+    border: 1px solid var(--line);
+    border-right: none;
+    padding: 18px 16px;
+    background: var(--panel);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .link:last-child { border-right: 1px solid var(--line); }
+  @media (max-width: 700px) { .link { border-right: 1px solid var(--line); } }
+  .link .lv { font-family: var(--mono); font-size: .66rem; letter-spacing: .16em; }
+  .link .nm { font-family: var(--display); font-size: 1.06rem; color: var(--bone); }
+  .link .df { font-size: .84rem; color: var(--dim); }
+  .link.relic  { box-shadow: inset 0 2px 0 var(--gold); }
+  .link.relic .lv { color: var(--gold); }
+  .link.steel  { box-shadow: inset 0 2px 0 var(--line-2); }
+  .link.steel .lv { color: var(--dim); }
+  .link.bare   { box-shadow: inset 0 2px 0 var(--blood); }
+  .link.bare .lv { color: var(--blood); }
+  .link.dead   { box-shadow: inset 0 2px 0 #4a1018; background: #0E0810; }
+  .link.dead .lv { color: #6b2530; }
+
+  /* ---------- tables ---------- */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: .88rem; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+  th {
+    font-family: var(--mono); font-size: .66rem; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--gold-dim); font-weight: 400;
+    background: var(--panel-2);
+    position: sticky; top: 0;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.name { font-family: var(--display); color: var(--bone); font-size: 1rem; white-space: nowrap; }
+  td.trait { color: var(--dim); }
+  td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .bar { display: flex; align-items: center; gap: 8px; }
+  .bar-track { flex: 1; height: 5px; background: #241A31; min-width: 54px; }
+  .bar-fill { height: 100%; display: block; }
+  .bar-fill.dmg { background: var(--gold); }
+  .bar-fill.rate { background: var(--phos); }
+
+  /* ---------- stages ---------- */
+  .stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .stages { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .stages { grid-template-columns: 1fr; } }
+  .stage {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    display: flex; flex-direction: column;
+  }
+  .swatch { display: flex; height: 56px; }
+  .swatch span { flex: 1; }
+  .swatch span:last-child { flex: .45; }
+  .stage-body { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 7px; }
+  .stage-no { font-family: var(--mono); font-size: .66rem; letter-spacing: .18em; color: var(--gold-dim); }
+  .stage-nm { font-family: var(--display); font-size: 1.14rem; color: var(--bone); }
+  .stage-gm { font-size: .85rem; color: var(--dim); }
+  .stage-boss {
+    font-family: var(--mono); font-size: .72rem; color: var(--phos);
+    padding-top: 8px; border-top: 1px solid var(--line);
+    margin-top: 3px;
+  }
+
+  /* ---------- timeline (armor break frames) ---------- */
+  .frames { display: flex; flex-direction: column; }
+  .frame {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    gap: 20px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: baseline;
+  }
+  .frame:last-child { border-bottom: none; }
+  .frame .t {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    font-size: .82rem; color: var(--gold);
+    text-align: right;
+  }
+  .frame .ev { font-size: .92rem; color: var(--text); }
+  .frame.key { background: linear-gradient(90deg, rgba(240,192,74,.06), transparent 70%); }
+  .frame.key .ev { color: var(--bone); }
+
+  /* ---------- roadmap ---------- */
+  .road { display: flex; gap: 3px; margin-bottom: 18px; }
+  .road div {
+    padding: 14px 12px;
+    background: var(--panel);
+    border-top: 2px solid var(--line-2);
+    display: flex; flex-direction: column; gap: 4px;
+    min-width: 0;
+  }
+  .road .m { font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; color: var(--dim); }
+  .road .w { font-family: var(--mono); font-size: .78rem; color: var(--bone); }
+  .road div:nth-child(2) { border-top-color: var(--gold); }
+  .road div:nth-child(2) .m { color: var(--gold); }
+  @media (max-width: 720px) { .road { flex-direction: column; } .road div { min-width: 100%; } }
+
+  ul.plain { margin: 0; padding-left: 1.1em; color: var(--dim); font-size: .92rem; }
+  ul.plain li { margin-bottom: 6px; }
+  ul.plain li::marker { color: var(--gold-dim); }
+
+  /* ---------- docs ---------- */
+  .docs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; background: var(--line); border: 1px solid var(--line); }
+  @media (max-width: 700px) { .docs { grid-template-columns: 1fr; } }
+  .doc { background: var(--panel); padding: 14px 18px; display: flex; gap: 14px; align-items: baseline; }
+  .doc code { font-family: var(--mono); font-size: .76rem; color: var(--phos); white-space: nowrap; }
+  .doc span { font-size: .86rem; color: var(--dim); }
+
+  footer { padding: 44px 0 72px; }
+  footer p { font-family: var(--mono); font-size: .72rem; letter-spacing: .1em; color: #5C5069; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">기획서 · 2026.08 · 코드명 mkv</p>
+      <h1 class="title-jp">마령촌</h1>
+      <p class="title-en">GRIMHOLLOW</p>
+      <div class="rule-gold"></div>
+      <p class="thesis">한 대 맞으면 갑옷이 부서지고,<br>두 대 맞으면 뼈만 남는다.<br><em>그 죽음마저 눈부시게.</em></p>
+      <div class="hero-meta">
+        <span class="chip">웹 브라우저</span>
+        <span class="chip">모던 픽셀아트</span>
+        <span class="chip">선형 스테이지 + 2회차</span>
+        <span class="chip">TypeScript · PixiJS v8</span>
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="demo-frame">
+        <canvas id="stage" width="200" height="150" role="img"
+                aria-label="픽셀아트 기사가 서 있는 데모 화면. 공격을 받으면 갑옷이 파편으로 부서지는 연출이 재생된다."></canvas>
+      </div>
+      <div class="demo-bar">
+        <span id="statusLine">갑옷: 강철</span>
+        <button class="strike" id="hitBtn" type="button">한 대 맞기</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">핵심 재미 3축</p>
+      <h2>원작의 규칙은 남기고, 원작의 부당함만 걷어낸다</h2>
+      <p class="lede">마계촌이 어려웠던 이유는 두 가지였다. 하나는 좋은 설계였고, 하나는 그냥 불친절이었다. 우리는 앞의 것만 가져온다.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <p class="axis-mark">축 1 — 판독</p>
+        <h3>정밀 점프의 긴장</h3>
+        <p>공중에서 방향을 바꿀 수 없다. 점프하는 순간 착지점이 확정된다. 그래서 <strong style="color:var(--text)">뛰기 전에 읽어야 한다.</strong> 이 규칙은 그대로 둔다. 대신 코요테 타임 5프레임, 점프 버퍼 6프레임으로 "게임이 나를 속였다"는 감각만 제거한다.</p>
+      </div>
+      <div class="card">
+        <p class="axis-mark">축 2 — 전복</p>
+        <h3>갑옷 파괴의 스펙터클</h3>
+        <p>피격이 이 게임에서 가장 화려한 0.3초다. 히트스톱 180ms, 금속 파편 24개, 방사형 섬광, 색수차. 플레이어는 갑옷을 잃고도 <strong style="color:var(--text)">"방금 그거 멋있었는데"</strong>라고 느낀다. 좌절을 감탄으로 덮어쓰는 것이 설계 목표다.</p>
+      </div>
+      <div class="card">
+        <p class="axis-mark">축 3 — 반전</p>
+        <h3>2회차 환마계</h3>
+        <p>최종보스를 쓰러뜨려도 끝나지 않는다. 그것은 환영이었다. 같은 스테이지가 색채 반전·진행 방향 반전·배치 재구성으로 <strong style="color:var(--text)">다른 게임이 된다.</strong> 원작 계승인 동시에, 웹의 용량 제약을 정면으로 푸는 설계다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">갑옷 시스템</p>
+      <h2>체력은 숫자가 아니라 실루엣이다</h2>
+      <p class="lede">HUD에 체력 게이지를 두지 않는다. 플레이어는 화면 구석이 아니라 자기 캐릭터를 봐야 한다. 지금 무엇을 입고 있는지가 곧 남은 목숨이다.</p>
+    </div>
+    <div class="chain">
+      <div class="link relic">
+        <span class="lv">선택 · HP 3</span>
+        <span class="nm">성유물 갑옷</span>
+        <span class="df">스테이지당 1개. 무기 각성 + 성흔 마법 해금. 스스로 빛나서, 잃으면 세상이 어두워진다.</span>
+      </div>
+      <div class="link steel">
+        <span class="lv">기본 · HP 2</span>
+        <span class="nm">강철 갑옷</span>
+        <span class="df">시작 상태. 여기서부터가 원작이 설계한 긴장의 본체다.</span>
+      </div>
+      <div class="link bare">
+        <span class="lv">마지막 · HP 1</span>
+        <span class="nm">속옷</span>
+        <span class="df">이동 속도 +8%. 공포가 다리를 빠르게 만든다. BGM에서 코러스가 빠지고 심장박동이 깔린다.</span>
+      </div>
+      <div class="link dead">
+        <span class="lv">종료</span>
+        <span class="nm">백골</span>
+        <span class="df">사망 판정부터 재조작까지 <strong style="color:var(--blood)">3초 이내.</strong> 이 수치를 못 지키면 다른 설계는 전부 무의미하다.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">연출 스펙</p>
+      <h2>가장 많은 리소스를 쓰는 0.3초</h2>
+      <p class="lede">위 데모에서 실제로 재생되는 시퀀스. 프레임 단위로 고정하고, 사운드 3레이어를 여기에 맞춰 붙인다.</p>
+    </div>
+    <div class="frames">
+      <div class="frame key"><span class="t">0 ms</span><span class="ev">히트 확정. <strong>히트스톱</strong> — 랜슬·적·투사체·파티클 전부 정지. 입력 버퍼 수집은 계속된다</span></div>
+      <div class="frame"><span class="t">0–40</span><span class="ev">랜슬 스프라이트 전체 백색 플래시 (additive, 알파 1.0 → 0.6)</span></div>
+      <div class="frame key"><span class="t">40</span><span class="ev">갑옷 파편 <strong>24개</strong> 스폰 — 스프라이트의 실제 픽셀에서 샘플링. 회전·중력·지면 튕김</span></div>
+      <div class="frame"><span class="t">40</span><span class="ev">방사형 섬광 링 확장 — 반경 8 → 96px, 0.14초</span></div>
+      <div class="frame"><span class="t">40–180</span><span class="ev">크로매틱 애버레이션 0 → 0.8 → 0 (RGB 최대 3px 분리)</span></div>
+      <div class="frame"><span class="t">60</span><span class="ev">화면 전체 순간 반전 1프레임</span></div>
+      <div class="frame"><span class="t">100</span><span class="ev">카메라 셰이크 — 진폭 6px, 감쇠 300ms, 28Hz</span></div>
+      <div class="frame key"><span class="t">180</span><span class="ev">히트스톱 해제. <strong>속옷 상태</strong> + 무적 깜빡임 1.2초</span></div>
+      <div class="frame"><span class="t">180–3000</span><span class="ev">파편이 지면에 남는다. 플레이어가 그 자리를 다시 지날 때 서사가 된다</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">스테이지</p>
+      <h2>인접한 두 스테이지는 색상환에서 가장 먼 곳에 둔다</h2>
+      <p class="lede">화려함은 상시 밝기가 아니라 대비에서 나온다. 스테이지가 바뀔 때마다 "다른 게임에 들어왔다"는 인상을 주는 것이 팔레트 설계의 목표다. 종루가 유일하게 밝은 이유도 그것이다.</p>
+    </div>
+    <div class="stages">
+      <div class="stage">
+        <div class="swatch"><span style="background:#1a2f2e"></span><span style="background:#2d4a52"></span><span style="background:#a86ff2"></span></div>
+        <div class="stage-body">
+          <span class="stage-no">STAGE 01</span>
+          <span class="stage-nm">서리 낀 묘지</span>
+          <span class="stage-gm">무너지는 묘비, 안개 시야 제한. 튜토리얼이자 첫 갑옷 파괴를 보여주는 곳</span>
+          <span class="stage-boss">BOSS — 캐른 / 시체 골렘</span>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="swatch"><span style="background:#3d1408"></span><span style="background:#8a2b0c"></span><span style="background:#ffb340"></span></div>
+        <div class="stage-body">
+          <span class="stage-no">STAGE 02</span>
+          <span class="stage-nm">불타는 마령촌</span>
+          <span class="stage-gm">확산되는 화재가 뒤에서 민다. 불꽃이 실제 광원으로 타일을 비춘다</span>
+          <span class="stage-boss">BOSS — 모르그 &amp; 마그 / 쌍둥이</span>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="swatch"><span style="background:#dae8f0"></span><span style="background:#7a9bb5"></span><span style="background:#e8f7ff"></span></div>
+        <div class="stage-body">
+          <span class="stage-no">STAGE 03</span>
+          <span class="stage-nm">얼어붙은 종루</span>
+          <span class="stage-gm">4초마다 울리는 종에 발판과 보스 패턴이 동기화. 눈이 아니라 귀로 하는 스테이지</span>
+          <span class="stage-boss">BOSS — 비르나 / 얼음 마녀</span>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="swatch"><span style="background:#1f2a12"></span><span style="background:#3d4a1f"></span><span style="background:#b84ade"></span></div>
+        <div class="stage-body">
+          <span class="stage-no">STAGE 04</span>
+          <span class="stage-nm">속삭이는 늪</span>
+          <span class="stage-gm">수위 상승과 독 안개. 수면 굴절 셰이더로 물 안팎의 경계가 실시간으로 흔들린다</span>
+          <span class="stage-boss">BOSS — 뮤크 / 늪 히드라</span>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="swatch"><span style="background:#0d0814"></span><span style="background:#241a35"></span><span style="background:#ffffff"></span></div>
+        <div class="stage-body">
+          <span class="stage-no">STAGE 05</span>
+          <span class="stage-nm">매달린 감옥</span>
+          <span class="stage-gm">유일한 세로 스크롤. 번개가 칠 때만 배경의 진짜 모습이 드러난다</span>
+          <span class="stage-boss">BOSS — 갈라드 / 거울 기사</span>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="swatch"><span style="background:#2b0510"></span><span style="background:#5c0a1a"></span><span style="background:#f0c04a"></span></div>
+        <div class="stage-body">
+          <span class="stage-no">STAGE 06</span>
+          <span class="stage-nm">잿빛 왕좌</span>
+          <span class="stage-gm">앞선 모든 기믹의 총집합. 3페이즈에서 무대 자체가 붕괴한다</span>
+          <span class="stage-boss">BOSS — 아스모데우스 / 대마왕</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">무기</p>
+      <h2>완벽한 무기도, 쓰레기 무기도 없다</h2>
+      <p class="lede">원작의 횃불은 뽑으면 런이 끝나는 함정이었다. 우리는 그것을 지역 장악형 유틸로 재설계했다. 성유물 갑옷을 입으면 7종이 각각 3방향으로 각성해 실질 28종이 된다.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">무기</th>
+            <th scope="col">데미지</th>
+            <th scope="col">연사</th>
+            <th scope="col">궤도</th>
+            <th scope="col">성격</th>
+          </tr>
+        </thead>
+        <tbody id="weaponBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">원작 대비 결정</p>
+      <h2>무엇을 지켰고 무엇을 버렸나</h2>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">원작 마계촌</th>
+            <th scope="col">마령촌</th>
+            <th scope="col">이유</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">고정 점프 궤도</td><td class="n" style="color:var(--gold)">유지</td><td class="trait">시리즈 정체성. 없애면 다른 게임이 된다</td></tr>
+          <tr><td class="name">상·하 공격 불가</td><td class="n" style="color:var(--blood)">완화</td><td class="trait">머리 위 적을 못 때려서 죽는 건 플레이어 실수가 아니다</td></tr>
+          <tr><td class="name">2피격 사망</td><td class="n" style="color:var(--gold)">유지</td><td class="trait">긴장의 근원. 성유물로 1회만 유예를 준다</td></tr>
+          <tr><td class="name">엄격한 시간 제한</td><td class="n" style="color:var(--blood)">완화</td><td class="trait">시간 압박은 학습을 방해한다. 여유 30% 추가</td></tr>
+          <tr><td class="name">2회차 진 엔딩</td><td class="n" style="color:var(--gold)">유지 + 강화</td><td class="trait">최고의 차별점이자 볼륨을 2배로 만드는 수단</td></tr>
+          <tr><td class="name">십자가 없이 최종보스 격파 불가</td><td class="n" style="color:var(--gold)">유지</td><td class="trait">전통은 지키되 3중 안전장치로 함정은 제거</td></tr>
+          <tr><td class="name">원치 않는 무기를 밟으면 끝</td><td class="n" style="color:var(--blood)">3초 유예</td><td class="trait">원작에서 가장 흔한 이탈 원인이었다</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">로드맵</p>
+      <h2>약 7개월 · 주 20시간 기준</h2>
+      <p class="lede">각 마일스톤은 명확한 종료 조건을 갖는다. 조건을 못 채우면 다음으로 넘어가지 않는다. 특히 M1을 통과하기 전에는 스테이지를 늘리지 않는다.</p>
+    </div>
+    <div class="road">
+      <div style="flex:2"><span class="m">M0 프로토타입</span><span class="w">2주</span></div>
+      <div style="flex:6"><span class="m">M1 버티컬 슬라이스</span><span class="w">6주</span></div>
+      <div style="flex:10"><span class="m">M2 코어 콘텐츠</span><span class="w">10주</span></div>
+      <div style="flex:8"><span class="m">M3 완성</span><span class="w">8주</span></div>
+      <div style="flex:4"><span class="m">M4 폴리시</span><span class="w">4주</span></div>
+    </div>
+    <div class="grid-2" style="margin-top:26px">
+      <div class="card">
+        <h3>M0의 유일한 질문</h3>
+        <p style="color:var(--text)">점프가 재미있는가?</p>
+        <p>회색 박스만 있다. 아트도 적도 이펙트도 없다. 테스터 절반 이상이 고정 점프 궤도를 답답해하면 <strong style="color:var(--gold)">기획을 고친다.</strong> 이 게임의 모든 것이 점프 위에 서 있으므로 여기서 타협하면 안 된다.</p>
+      </div>
+      <div class="card">
+        <h3>M1의 유일한 질문</h3>
+        <p style="color:var(--text)">죽어도 다시 하고 싶은가?</p>
+        <p>스테이지 하나만, 대신 최종 품질로. 합격선은 <strong style="color:var(--gold)">사망 후 즉시 재시도율 90%</strong>. 이 수치가 낮으면 게임이 어려운 게 아니라 불공정하게 느껴진다는 뜻이다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">리스크</p>
+      <h2>먼저 깨질 것들</h2>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <p class="axis-mark">확률 중 · 영향 치명</p>
+        <h3>고정 점프가 거부된다</h3>
+        <p>현대 플레이어가 공중 제어 불가를 견디지 못할 수 있다. M0에서 조기 검증하고, 실패 시 가변 점프 높이 또는 소폭 공중 제어를 검토한다.</p>
+      </div>
+      <div class="card">
+        <p class="axis-mark">확률 높음 · 영향 높음</p>
+        <h3>아트 제작량 초과</h3>
+        <p>무기 각성 21조합이 최대 위험이다. 고유 스프라이트는 5개 이하로 제한하고 나머지는 팔레트 스왑과 파티클 변경으로 흡수한다.</p>
+      </div>
+      <div class="card">
+        <p class="axis-mark">확률 중 · 영향 높음</p>
+        <h3>환마계가 반복으로 느껴진다</h3>
+        <p>셰이더 변환만으로는 "색만 바뀐 재탕"이 될 수 있다. M3 초반에 스테이지 1 환마계 버전을 먼저 만들어 조기에 판단한다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">문서</p>
+      <h2>기획서 전문</h2>
+      <p class="lede">이 페이지는 요약이다. 수치 스펙과 상세 설계는 저장소의 <code style="font-family:var(--mono);color:var(--phos)">docs/</code> 에 있다.</p>
+    </div>
+    <div class="docs">
+      <div class="doc"><code>01-concept.md</code><span>컨셉, 타겟, 스토리, 차별점</span></div>
+      <div class="doc"><code>02-core-mechanics.md</code><span>이동·점프·공격·갑옷 수치 스펙</span></div>
+      <div class="doc"><code>03-weapons-magic.md</code><span>무기 7종, 각성 21조합, 성흔 3종</span></div>
+      <div class="doc"><code>04-stages.md</code><span>스테이지 6+1, 레벨 디자인 원칙</span></div>
+      <div class="doc"><code>05-enemies-bosses.md</code><span>잡몹 14종, 보스 7종 패턴</span></div>
+      <div class="doc"><code>06-visual-direction.md</code><span>셰이더 스택, 게임필, 팔레트</span></div>
+      <div class="doc"><code>07-audio.md</code><span>적응형 BGM, SFX, 용량 예산</span></div>
+      <div class="doc"><code>08-progression-difficulty.md</code><span>환마계, 난이도 곡선, 접근성</span></div>
+      <div class="doc"><code>09-ui-ux-controls.md</code><span>HUD, 화면 흐름, 입력 매핑</span></div>
+      <div class="doc"><code>10-tech-spec.md</code><span>아키텍처, 렌더 파이프라인, 성능 예산</span></div>
+      <div class="doc"><code>11-roadmap.md</code><span>M0~M4 마일스톤, 리스크</span></div>
+      <div class="doc"><code>README.md</code><span>문서 인덱스 및 읽는 순서</span></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>마령촌 · GRIMHOLLOW — 기획 v0.1 · 개발 착수 전 · 이름과 수치는 M0에서 재검증</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 무기 테이블 ================= */
+  var WEAPONS = [
+    { n: '창',     d: 10, f: 20, arc: '직선',     t: '밸런스 · 기본 무기' },
+    { n: '단검',   d: 6,  f: 10, arc: '직선 ×3',  t: '최고 연사 · 저데미지' },
+    { n: '횃불',   d: 8,  f: 30, arc: '포물선',   t: '화염 장판 3초 · 지역 제어' },
+    { n: '도끼',   d: 22, f: 36, arc: '포물선',   t: '최고 단발 · 근거리 최악' },
+    { n: '십자가', d: 14, f: 28, arc: '관통',     t: '성속성 · 최종보스 필수' },
+    { n: '원반',   d: 9,  f: 24, arc: '벽 반사',  t: '좁은 방에서 가장 잔인하다' },
+    { n: '망치',   d: 16, f: 32, arc: '포물선',   t: '착지 충격파 · 지상 광역' }
+  ];
+
+  var tbody = document.getElementById('weaponBody');
+  if (tbody) {
+    var maxD = 22, maxRate = 6; // rate = 60 / f
+    WEAPONS.forEach(function (w) {
+      var rate = 60 / w.f;
+      var tr = document.createElement('tr');
+
+      var c1 = document.createElement('td');
+      c1.className = 'name';
+      c1.textContent = w.n;
+
+      var c2 = document.createElement('td');
+      c2.innerHTML = '<span class="bar"><span class="n" style="width:2.2em">' + w.d +
+        '</span><span class="bar-track"><span class="bar-fill dmg" style="width:' +
+        Math.round(w.d / maxD * 100) + '%"></span></span></span>';
+
+      var c3 = document.createElement('td');
+      c3.innerHTML = '<span class="bar"><span class="n" style="width:3.2em">' + w.f +
+        'f</span><span class="bar-track"><span class="bar-fill rate" style="width:' +
+        Math.round(rate / maxRate * 100) + '%"></span></span></span>';
+
+      var c4 = document.createElement('td');
+      c4.className = 'n';
+      c4.style.color = 'var(--dim)';
+      c4.textContent = w.arc;
+
+      var c5 = document.createElement('td');
+      c5.className = 'trait';
+      c5.textContent = w.t;
+
+      tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(c3); tr.appendChild(c4); tr.appendChild(c5);
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ================= 갑옷 파괴 데모 ================= */
+  var cv = document.getElementById('stage');
+  if (!cv) return;
+  var ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  var W = cv.width, H = cv.height;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var PAL = {
+    '1': '#F7DE8A', '2': '#D9A93C', '3': '#8A6420',
+    '4': '#E8B98C', '5': '#EDE6D8', '6': '#2A1E22', '7': '#C23B4A'
+  };
+
+  var SW = 16, SH = 20, PX = 3;          // 스프라이트 16×20, 픽셀당 3
+
+  /* 행 길이를 SW 로 강제해 한 글자 오타가 실루엣을 무너뜨리지 않게 한다 */
+  function sprite(rows) {
+    return rows.map(function (row) {
+      return row.length >= SW ? row.slice(0, SW) : row + new Array(SW - row.length + 1).join('.');
+    });
+  }
+
+  var ARMORED = sprite([
+    '......7777......',   // 투구 깃털
+    '......7777......',
+    '....11111111....',
+    '...1222222221...',
+    '...1233333321...',
+    '...1234444321...',   // 바이저 틈
+    '...1233333321...',
+    '....12222221....',   // 목
+    '.11122222222111.',   // 어깨 패드
+    '.11222222222211.',
+    '..122222222221..',
+    '..123333333321..',   // 흉갑
+    '..122211112221..',   // 허리띠
+    '...1222222221...',
+    '....12222221....',
+    '....222..222....',   // 다리
+    '....222..222....',
+    '....322..223....',
+    '....333..333....',   // 부츠
+    '...3333..3333...'
+  ]);
+
+  var BARE = sprite([
+    '................',
+    '................',
+    '....66666666....',   // 머리카락
+    '...6644444466...',
+    '...6444444446...',
+    '...4446446444...',   // 눈
+    '...4444444444...',
+    '....44444444....',
+    '.44444444444444.',
+    '.44444444444444.',
+    '..444444444444..',
+    '..444444444444..',
+    '..445555555544..',   // 속옷
+    '...5555555555...',
+    '....55555555....',
+    '....555..555....',
+    '....444..444....',
+    '....444..444....',
+    '....444..444....',
+    '...4444..4444...'
+  ]);
+
+  var ORIGIN_X = Math.round(W / 2 - SW * PX / 2);
+  var ORIGIN_Y = H - 30 - SH * PX;       // 발끝이 지면선에 닿도록
+
+  /* 갑옷 픽셀 좌표 수집 (파편 샘플링용) */
+  var armorPixels = [];
+  for (var r = 0; r < SH; r++) {
+    for (var c = 0; c < SW; c++) {
+      var ch = ARMORED[r][c];
+      if (ch === '1' || ch === '2' || ch === '3' || ch === '7') {
+        armorPixels.push({ c: c, r: r, col: PAL[ch] });
+      }
+    }
+  }
+
+  /* 도깨비불 */
+  var wisps = [];
+  for (var i = 0; i < 5; i++) {
+    wisps.push({
+      x: 20 + Math.random() * (W - 40),
+      y: 30 + Math.random() * (H - 70),
+      p: Math.random() * Math.PI * 2,
+      s: 0.4 + Math.random() * 0.6,
+      r: 1 + Math.random() * 1.5
+    });
+  }
+
+  /* 상태 */
+  var state = 'armored';   // armored | breaking | bare
+  var t0 = 0;              // 연출 시작 시각
+  var shards = [];
+  var ring = null;
+  var lastTs = 0;
+
+  var statusLine = document.getElementById('statusLine');
+  var hitBtn = document.getElementById('hitBtn');
+
+  function setStatus(txt, color) {
+    if (!statusLine) return;
+    statusLine.textContent = txt;
+    statusLine.style.color = color || 'var(--dim)';
+  }
+
+  function spawnShards() {
+    shards = [];
+    var pool = armorPixels.slice();
+    for (var k = 0; k < 24 && pool.length; k++) {
+      var idx = Math.floor(Math.random() * pool.length);
+      var p = pool.splice(idx, 1)[0];
+      var px = ORIGIN_X + p.c * PX;
+      var py = ORIGIN_Y + p.r * PX;
+      var ang = Math.atan2(py - (ORIGIN_Y + SH * PX * 0.45), px - (ORIGIN_X + SW * PX / 2));
+      var spd = 40 + Math.random() * 90;
+      shards.push({
+        x: px, y: py,
+        vx: Math.cos(ang) * spd + (Math.random() - 0.5) * 40,
+        vy: Math.sin(ang) * spd - 40 - Math.random() * 50,
+        col: p.col,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 12,
+        life: 0
+      });
+    }
+  }
+
+  function strike() {
+    if (state !== 'armored') return;
+    state = 'breaking';
+    t0 = performance.now();
+    ring = { r: 4, a: 1 };
+    spawnShards();
+    setStatus('갑옷 파괴 — 히트스톱 180ms', 'var(--blood)');
+    if (hitBtn) { hitBtn.disabled = true; hitBtn.textContent = '…'; }
+  }
+
+  function reset() {
+    state = 'armored';
+    shards = [];
+    ring = null;
+    setStatus('갑옷: 강철', 'var(--dim)');
+    if (hitBtn) { hitBtn.disabled = false; hitBtn.textContent = '한 대 맞기'; }
+  }
+
+  cv.addEventListener('click', strike);
+  if (hitBtn) hitBtn.addEventListener('click', strike);
+
+  /* ---------- 그리기 ---------- */
+  function drawSprite(g, map, ox, oy, tint) {
+    for (var r = 0; r < SH; r++) {
+      var row = map[r];
+      for (var c = 0; c < SW; c++) {
+        var ch = row[c];
+        if (ch === '.' || ch === undefined) continue;
+        g.fillStyle = tint || PAL[ch] || '#fff';
+        g.fillRect(ox + c * PX, oy + r * PX, PX, PX);
+      }
+    }
+  }
+
+  function drawScene(g, now, elapsed) {
+    /* 배경 */
+    var sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#150F20');
+    sky.addColorStop(0.62, '#0C0812');
+    sky.addColorStop(1, '#070509');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, W, H);
+
+    /* 원경 묘비 실루엣 */
+    g.fillStyle = '#100A18';
+    var stones = [[16, 22], [34, 15], [58, 26], [128, 19], [152, 24], [176, 14]];
+    for (var s = 0; s < stones.length; s++) {
+      var sx = stones[s][0], sh = stones[s][1];
+      g.fillRect(sx, H - 30 - sh, 9, sh);
+      g.fillRect(sx - 2, H - 30 - sh, 13, 4);
+    }
+
+    /* 도깨비불 */
+    for (var i = 0; i < wisps.length; i++) {
+      var w = wisps[i];
+      if (!reduced && state !== 'breaking') {
+        w.p += 0.012 * w.s;
+      }
+      var wy = w.y + Math.sin(w.p) * 7;
+      var wx = w.x + Math.cos(w.p * 0.6) * 4;
+      var gr = g.createRadialGradient(wx, wy, 0, wx, wy, w.r * 7);
+      gr.addColorStop(0, 'rgba(168,111,242,0.85)');
+      gr.addColorStop(0.35, 'rgba(168,111,242,0.22)');
+      gr.addColorStop(1, 'rgba(168,111,242,0)');
+      g.fillStyle = gr;
+      g.fillRect(wx - w.r * 7, wy - w.r * 7, w.r * 14, w.r * 14);
+    }
+
+    /* 지면 */
+    g.fillStyle = '#0E0A14';
+    g.fillRect(0, H - 30, W, 30);
+    g.fillStyle = '#1B1428';
+    g.fillRect(0, H - 30, W, 2);
+
+    /* 성유물 광휘 (갑옷 상태에서만) */
+    if (state === 'armored') {
+      var cx = ORIGIN_X + SW * PX / 2, cy = ORIGIN_Y + SH * PX * 0.5;
+      var glow = g.createRadialGradient(cx, cy, 0, cx, cy, 52);
+      glow.addColorStop(0, 'rgba(240,192,74,0.16)');
+      glow.addColorStop(1, 'rgba(240,192,74,0)');
+      g.fillStyle = glow;
+      g.fillRect(cx - 52, cy - 52, 104, 104);
+    }
+
+    /* 파편 */
+    for (var k = 0; k < shards.length; k++) {
+      var sp = shards[k];
+      var alpha = sp.life > 2200 ? Math.max(0, 1 - (sp.life - 2200) / 800) : 1;
+      g.globalAlpha = alpha;
+      g.save();
+      g.translate(sp.x, sp.y);
+      g.rotate(sp.rot);
+      g.fillStyle = sp.col;
+      g.fillRect(-PX / 2, -PX / 2, PX, PX);
+      g.restore();
+      g.globalAlpha = 1;
+    }
+
+    /* 캐릭터 */
+    var flash = null;
+    if (state === 'breaking' && elapsed < 40) flash = '#FFFFFF';
+
+    if (state === 'armored' || (state === 'breaking' && elapsed < 40)) {
+      drawSprite(g, ARMORED, ORIGIN_X, ORIGIN_Y, flash);
+    } else {
+      /* 무적 깜빡임 */
+      var blinkOn = true;
+      if (state === 'breaking') {
+        var since = elapsed - 180;
+        if (since < 1200) blinkOn = Math.floor(since / 66) % 2 === 0;
+      }
+      if (blinkOn) drawSprite(g, BARE, ORIGIN_X, ORIGIN_Y, null);
+    }
+
+    /* 섬광 링 */
+    if (ring && ring.a > 0) {
+      g.strokeStyle = 'rgba(255,240,200,' + ring.a.toFixed(3) + ')';
+      g.lineWidth = Math.max(1, 4 * ring.a);
+      g.beginPath();
+      g.arc(ORIGIN_X + SW * PX / 2, ORIGIN_Y + SH * PX * 0.42, ring.r, 0, Math.PI * 2);
+      g.stroke();
+    }
+  }
+
+  /* 오프스크린 (색수차 합성용) */
+  var off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  var offCtx = off.getContext('2d');
+  offCtx.imageSmoothingEnabled = false;
+
+  var tint = document.createElement('canvas');
+  tint.width = W; tint.height = H;
+  var tintCtx = tint.getContext('2d');
+  tintCtx.imageSmoothingEnabled = false;
+
+  function drawTinted(g, color, dx, alpha) {
+    tintCtx.globalCompositeOperation = 'source-over';
+    tintCtx.clearRect(0, 0, W, H);
+    tintCtx.drawImage(off, 0, 0);
+    tintCtx.globalCompositeOperation = 'multiply';
+    tintCtx.fillStyle = color;
+    tintCtx.fillRect(0, 0, W, H);
+    tintCtx.globalCompositeOperation = 'source-over';
+
+    g.globalAlpha = alpha;
+    g.globalCompositeOperation = 'lighter';
+    g.drawImage(tint, dx, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  function frame(ts) {
+    var dt = lastTs ? Math.min(50, ts - lastTs) : 16;
+    lastTs = ts;
+    var elapsed = state === 'breaking' ? ts - t0 : 0;
+    var hitstop = state === 'breaking' && elapsed < 180;
+
+    /* 물리 갱신 — 히트스톱 중에는 멈춘다 */
+    if (!hitstop) {
+      var sdt = dt / 1000;
+      for (var k = 0; k < shards.length; k++) {
+        var sp = shards[k];
+        sp.life += dt;
+        sp.vy += 420 * sdt;
+        sp.x += sp.vx * sdt;
+        sp.y += sp.vy * sdt;
+        sp.rot += sp.vr * sdt;
+        if (sp.y > H - 31) {
+          sp.y = H - 31;
+          sp.vy *= -0.36;
+          sp.vx *= 0.68;
+          sp.vr *= 0.5;
+          if (Math.abs(sp.vy) < 12) { sp.vy = 0; sp.vr = 0; }
+        }
+      }
+      if (ring) {
+        ring.r += 620 * (dt / 1000);
+        ring.a -= dt / 150;
+        if (ring.a <= 0) ring = null;
+      }
+    }
+
+    /* 씬을 오프스크린에 */
+    drawScene(offCtx, ts, elapsed);
+
+    /* 셰이크 + 합성 */
+    var shake = 0;
+    if (state === 'breaking' && !reduced && elapsed > 100 && elapsed < 400) {
+      var decay = 1 - (elapsed - 100) / 300;
+      shake = 6 * decay * decay;
+    }
+    var ox = shake ? (Math.random() - 0.5) * shake * 2 : 0;
+    var oy = shake ? (Math.random() - 0.5) * shake * 2 : 0;
+
+    ctx.fillStyle = '#06040A';
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(Math.round(ox), Math.round(oy));
+    ctx.drawImage(off, 0, 0);
+    ctx.restore();
+
+    /* 크로매틱 애버레이션 40–180ms */
+    if (state === 'breaking' && !reduced && elapsed >= 40 && elapsed < 180) {
+      var prog = (elapsed - 40) / 140;
+      var ca = Math.sin(prog * Math.PI);      // 0 → 0.8 → 0
+      var dx = Math.round(3 * ca);
+      if (dx > 0) {
+        ctx.save();
+        ctx.translate(Math.round(ox), Math.round(oy));
+        drawTinted(ctx, '#FF0000', -dx, ca * 0.55);
+        drawTinted(ctx, '#00FFFF', dx, ca * 0.55);
+        ctx.restore();
+      }
+    }
+
+    /* 60ms 1프레임 반전 */
+    if (state === 'breaking' && !reduced && elapsed >= 58 && elapsed < 74) {
+      ctx.globalCompositeOperation = 'difference';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    /* 상태 전이 */
+    if (state === 'breaking') {
+      if (elapsed >= 180 && elapsed < 200) setStatus('갑옷: 속옷 — 다음 피격은 사망', 'var(--blood)');
+      if (elapsed >= 4200) reset();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>

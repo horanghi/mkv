@@ -1,0 +1,774 @@
+<title>랜슬 캐릭터 시트</title>
+
+<style>
+  :root {
+    --ink:#0B0710; --panel:#150E1C; --panel-2:#1D1428;
+    --line:#2E2140; --line-2:#43315C;
+    --text:#D6CADF; --dim:#8B7C9B;
+    --gold:#F0C04A; --gold-dim:#8A6C28; --phos:#A86FF2; --blood:#E2455A; --bone:#EDE6D8;
+    --display:'Iowan Old Style','Palatino Linotype',Palatino,'Nanum Myeongjo',Georgia,serif;
+    --body:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;
+    --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0;
+    background:
+      repeating-linear-gradient(0deg, rgba(168,111,242,.028) 0 1px, transparent 1px 16px),
+      repeating-linear-gradient(90deg, rgba(168,111,242,.028) 0 1px, transparent 1px 16px),
+      var(--ink);
+    color:var(--text); font-family:var(--body); line-height:1.7;
+    word-break:keep-all; overflow-wrap:break-word; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1060px; margin:0 auto; padding:0 24px; }
+  h1,h2 { font-family:var(--display); margin:0; text-wrap:balance; color:var(--bone); }
+  h1 { font-size:clamp(2rem,5vw,3rem); letter-spacing:-.01em; }
+  h2 { font-size:clamp(1.35rem,3vw,1.85rem); }
+  h3 { font-family:var(--display); font-size:1.04rem; color:var(--bone); margin:0; }
+  p { margin:0; }
+  .eyebrow { font-family:var(--mono); font-size:.68rem; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-dim); }
+  .lede { color:var(--dim); max-width:64ch; }
+  code { font-family:var(--mono); font-size:.82em; color:var(--phos); }
+
+  header { padding:clamp(46px,8vw,80px) 0 38px; border-bottom:1px solid var(--line); }
+  .rule { height:1px; background:linear-gradient(90deg,var(--gold),var(--phos) 42%,transparent); opacity:.55; margin:20px 0; }
+  section { padding:clamp(42px,6vw,68px) 0; border-bottom:1px solid var(--line); }
+  .sec-head { display:flex; flex-direction:column; gap:10px; margin-bottom:30px; }
+
+  /* 무대 */
+  .stage-row { display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr); gap:26px; align-items:start; }
+  @media (max-width:820px){ .stage-row { grid-template-columns:1fr; } }
+  .stage-box { border:1px solid var(--line-2); background:#06040A; padding:10px; }
+  #stage { display:block; width:100%; height:auto; image-rendering:pixelated; }
+
+  .controls { display:flex; flex-direction:column; gap:18px; }
+  .btn-row { display:flex; flex-wrap:wrap; gap:8px; }
+  button {
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.12em;
+    background:transparent; color:var(--dim); border:1px solid var(--line-2);
+    padding:8px 14px; cursor:pointer; transition:background .15s,color .15s,border-color .15s;
+  }
+  button:hover { border-color:var(--gold-dim); color:var(--bone); }
+  button[aria-pressed="true"] { background:var(--gold); color:#120C05; border-color:var(--gold); }
+  button:focus-visible { outline:2px solid var(--phos); outline-offset:2px; }
+  .ctl-label { font-family:var(--mono); font-size:.64rem; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-dim); margin-bottom:8px; display:block; }
+  .readout { font-family:var(--mono); font-size:.72rem; color:var(--dim); letter-spacing:.06em; }
+
+  /* 프레임 스트립 */
+  .strip { display:flex; gap:6px; flex-wrap:wrap; margin-top:22px; }
+  .strip figure { margin:0; display:flex; flex-direction:column; gap:5px; align-items:center; }
+  .strip canvas {
+    display:block; image-rendering:pixelated; border:1px solid var(--line);
+    background:#0E0916; width:64px; height:64px;
+  }
+  .strip figure.on canvas { border-color:var(--gold); }
+  .strip figcaption { font-family:var(--mono); font-size:.6rem; color:var(--dim); }
+  .strip figure.on figcaption { color:var(--gold); }
+
+  .grid2 { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; }
+  @media (max-width:760px){ .grid2 { grid-template-columns:1fr; } }
+  .card { border:1px solid var(--line); background:var(--panel); padding:20px; display:flex; flex-direction:column; gap:8px; }
+  .card p { font-size:.88rem; color:var(--dim); }
+  .card .n { font-family:var(--mono); font-size:.64rem; letter-spacing:.18em; color:var(--phos); }
+
+  .scroll { overflow-x:auto; border:1px solid var(--line); background:var(--panel); }
+  table { border-collapse:collapse; width:100%; min-width:540px; font-size:.86rem; }
+  th,td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); }
+  th { font-family:var(--mono); font-size:.63rem; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-dim); font-weight:400; background:var(--panel-2); }
+  tbody tr:last-child td { border-bottom:none; }
+  td.k { font-family:var(--mono); color:var(--bone); white-space:nowrap; }
+  td.d { color:var(--dim); }
+
+  /* 정면 4상태 */
+  .sheet { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media (max-width:860px){ .sheet { grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:500px){ .sheet { grid-template-columns:1fr; } }
+  .cell { border:1px solid var(--line); background:var(--panel); }
+  .cell canvas {
+    display:block; width:100%; height:auto; image-rendering:pixelated;
+    background:linear-gradient(45deg,#171020 25%,transparent 25%,transparent 75%,#171020 75%),
+               linear-gradient(45deg,#171020 25%,#100B18 25%,#100B18 75%,#171020 75%);
+    background-size:16px 16px; background-position:0 0,8px 8px;
+  }
+  .cell-body { padding:12px 14px 16px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
+  .cell-hp { font-family:var(--mono); font-size:.63rem; letter-spacing:.16em; color:var(--dim); }
+  .cell-nm { font-family:var(--display); font-size:1.04rem; color:var(--bone); }
+  .cell-df { font-size:.8rem; color:var(--dim); }
+
+  footer { padding:38px 0 64px; }
+  footer p { font-family:var(--mono); font-size:.7rem; letter-spacing:.09em; color:#5C5069; }
+  @media (prefers-reduced-motion:reduce){ *{ transition-duration:.001ms !important; } }
+</style>
+
+<header>
+  <div class="wrap">
+    <p class="eyebrow">마령촌 · 주인공 · 32×32</p>
+    <h1>랜슬 경</h1>
+    <div class="rule"></div>
+    <p class="lede">왕국 최후의 성기사. 32세. 대사가 거의 없고, 표정 대신 갑옷 상태로 감정을 드러낸다. 측면 스크롤 게임이므로 실제 플레이에 쓰이는 것은 아래의 측면 스프라이트다.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">동작 애니메이션</p>
+      <h2>다섯 동작, 스무 프레임</h2>
+      <p class="lede">모든 프레임은 파츠 아홉 개를 오프셋만 바꿔 조립한다. 프레임마다 도트를 새로 찍지 않기 때문에, 동작을 늘려도 작업량이 거의 늘지 않는다.</p>
+    </div>
+
+    <div class="stage-row">
+      <div class="stage-box">
+        <canvas id="stage" width="256" height="256" role="img" aria-label="랜슬의 동작 애니메이션이 재생되는 화면"></canvas>
+      </div>
+
+      <div class="controls">
+        <div>
+          <span class="ctl-label">동작</span>
+          <div class="btn-row" id="clips"></div>
+        </div>
+        <div>
+          <span class="ctl-label">상태 — 파츠 교체 · 클립은 그대로</span>
+          <div class="btn-row" id="pals"></div>
+        </div>
+        <div>
+          <span class="ctl-label">무기 — 던지기 동작에서 표시</span>
+          <div class="btn-row" id="wpns"></div>
+        </div>
+        <div>
+          <span class="ctl-label">재생</span>
+          <div class="btn-row">
+            <button type="button" id="playBtn" aria-pressed="true">재생 / 정지</button>
+            <button type="button" id="stepBtn">한 프레임</button>
+            <button type="button" id="slowBtn" aria-pressed="false">느리게</button>
+          </div>
+        </div>
+        <p class="readout" id="readout">walk · 1/8 · 12fps</p>
+      </div>
+    </div>
+
+    <div class="strip" id="strip"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">파츠 시스템</p>
+      <h2>아홉 조각으로 조립한다</h2>
+      <p class="lede">뒷팔·뒷다리는 어두운 색으로 그려 깊이를 만든다. 측면 픽셀아트에서 앞뒤를 구분하는 표준 기법이고, 이 게임에서는 파츠 오프셋만으로 걷기·점프·공격이 전부 나온다.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>파츠</th><th>기준 위치</th><th>크기</th><th>애니메이션에서 움직이는 축</th></tr></thead>
+        <tbody>
+          <tr><td class="k">PLUME</td><td class="k">(4, 2)</td><td class="k">6×4</td><td class="d">몸통 따라 상하만</td></tr>
+          <tr><td class="k">HEAD</td><td class="k">(9, 4)</td><td class="k">12×8</td><td class="d">몸통 따라 상하만</td></tr>
+          <tr><td class="k">TORSO</td><td class="k">(10, 12)</td><td class="k">10×10</td><td class="d">상하 (바운스·웅크리기)</td></tr>
+          <tr><td class="k">ARM_F</td><td class="k">(17, 15)</td><td class="k">4×6</td><td class="d">좌우 + 상하 (공격의 주역)</td></tr>
+          <tr><td class="k">ARM_B</td><td class="k">(8, 15)</td><td class="k">4×6</td><td class="d">좌우 (걷기 반대 위상)</td></tr>
+          <tr><td class="k">LEG_F</td><td class="k">(15, 22)</td><td class="k">4×7</td><td class="d">좌우 (보폭)</td></tr>
+          <tr><td class="k">LEG_B</td><td class="k">(10, 22)</td><td class="k">4×7</td><td class="d">좌우 (반대 보폭)</td></tr>
+          <tr><td class="k">BOOT_F</td><td class="k">(15, 29)</td><td class="k">5×2</td><td class="d">앞다리 따라감</td></tr>
+          <tr><td class="k">BOOT_B</td><td class="k">(9, 29)</td><td class="k">5×2</td><td class="d">뒷다리 따라감</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">갑옷 상태 · 정면</p>
+      <h2>한 대 맞을 때마다 한 칸씩</h2>
+      <p class="lede">체력은 숫자가 아니라 실루엣이다. HUD에 게이지를 두지 않는 대신, 지금 무엇을 입고 있는지가 곧 남은 목숨이다. 아래는 타이틀·메뉴·결과 화면에 쓰는 정면 뷰다.</p>
+    </div>
+    <div class="sheet" id="sheet"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">스테이지 1 · 적</p>
+      <h2>그림 — 가장 미움받아야 할 적</h2>
+      <p class="lede">원작 레드 아리마의 계승자. 고정 점프 궤도와 최악의 상성으로 설계했다. 공중에서 만나면 회피할 수 없으므로, 플레이어는 <strong style="color:var(--text)">뛰기 전에 반드시 그림의 위치를 확인하게 된다.</strong> 이 게임의 사고 루프를 강제하는 장치다.</p>
+    </div>
+    <div class="stage-row">
+      <div class="stage-box">
+        <canvas id="grimm" width="256" height="256" role="img" aria-label="붉은 비행 악마 그림이 날갯짓하는 애니메이션"></canvas>
+      </div>
+      <div class="controls">
+        <div>
+          <span class="ctl-label">상태</span>
+          <div class="btn-row" id="gclips"></div>
+        </div>
+        <div class="card" style="padding:16px">
+          <span class="n" style="font-family:var(--mono);font-size:.64rem;letter-spacing:.18em;color:var(--phos)">공정성 장치</span>
+          <p style="font-size:.86rem;color:var(--dim);margin:0">그림은 <strong style="color:var(--text)">절대 화면 밖에서 스폰되지 않는다.</strong> 반드시 화면 안에서 벽이나 천장에 붙은 대기 상태로 먼저 보인다. 반경 120px에 플레이어가 들어오면 이륙한다.</p>
+        </div>
+        <div class="card" style="padding:16px">
+          <span class="n" style="font-family:var(--mono);font-size:.64rem;letter-spacing:.18em;color:var(--gold)">유일한 틈</span>
+          <p style="font-size:.86rem;color:var(--dim);margin:0">지면에 닿으면 <strong style="color:var(--text)">3초간 정지</strong>한다. 이 게임에서 그림을 확실히 잡을 수 있는 유일한 타이밍이다.</p>
+        </div>
+        <p class="readout" id="greadout">fly · 1/4 · 8fps</p>
+      </div>
+    </div>
+
+    <div class="grid2" id="mobs" style="margin-top:26px"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">도트 원칙</p>
+      <h2>32px에서 실루엣이 무너졌던 지점들</h2>
+      <p class="lede">작업하며 실제로 한 번씩 틀렸다가 고친 것들. 문서에 규칙으로 남겼다.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <span class="n">원칙 1</span>
+        <h3>아웃라인은 실루엣 바깥에만</h3>
+        <p>3px 팔에 양쪽 아웃라인을 넣으면 2px이 검정이 되어 팔이 검은 막대가 된다. 몸통과 닿는 안쪽은 그림자색으로 나눈다.</p>
+      </div>
+      <div class="card">
+        <span class="n">원칙 2</span>
+        <h3>그림자색을 아웃라인에 붙이지 않는다</h3>
+        <p>처음 쓴 <code>#4C5769</code>는 아웃라인과 명도가 가까워 뭉쳤다. <code>#5F6E85</code>로 올려 분리했다.</p>
+      </div>
+      <div class="card">
+        <span class="n">원칙 3</span>
+        <h3>뼈는 빈 공간으로 그린다</h3>
+        <p>갈비를 채웠더니 흰 덩어리가 됐다. 선과 투명을 번갈아 두고 척추만 남기자 해골로 읽혔다.</p>
+      </div>
+      <div class="card">
+        <span class="n">원칙 4</span>
+        <h3>측면 게임에는 측면 스프라이트</h3>
+        <p>정면 뷰로 걷기를 만들자 다리가 교차해버렸다. 측면 스크롤 게임의 플레이 스프라이트는 처음부터 측면으로 설계해야 한다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>마령촌 · docs/12-sprites.md · 측면 속옷·백골, 적 스프라이트는 미착수</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var PAL_RELIC = {'0':'#0B0710','1':'#FFF6D0','2':'#F0C04A','3':'#C4901E','4':'#8A5F14','B':'#2A1D08','7':'#E8546A','8':'#9B2436'};
+  var PAL_STEEL = {'0':'#0B0710','1':'#EDF2FA','2':'#B9C6D8','3':'#8695AC','4':'#5F6E85','B':'#2A2438','7':'#C23B4A','8':'#7E1F2C'};
+  var PAL_FLESH = {'0':'#0B0710','5':'#F0C08A','6':'#C08A5E','9':'#EDE6D8','A':'#B9AE9A','C':'#3E2E1E','D':'#5E4630'};
+  var PAL_BONE  = {'0':'#0B0710','9':'#EDE6D8','A':'#A99C8A','B':'#241C2E'};
+
+  /* ── 측면 파츠 ────────────────────────────── */
+  var P = {
+    PLUME: ['....78','..7888','.78880','788...'],
+    HEAD: ['...000000...','..01222220..','.0122222220.','012222BBB220',
+           '012222222220','.01222222220','..012222220.','...004400...'],
+    TORSO: ['.01222210.','0122222210','0122222210','0122222210','0123333210',
+            '0123333210','0122222210','0122222210','.01222210.','0123333210'],
+    ARM_F: ['4220','4220','4220','4220','4110','.00.'],
+    ARM_B: ['0344','0344','0344','0344','0114','.00.'],
+    LEG_F: ['4220','4220','4220','4330','4330','4330','4330'],
+    LEG_B: ['0344','0344','0344','0334','0334','0334','0334'],
+    BOOT_F: ['42220','42220'],
+    BOOT_B: ['03444','03444']
+  };
+
+  /* 측면 속옷 — 갑옷과 동일 위치·크기라 클립을 그대로 재사용한다 */
+  var P_BARE = {
+    PLUME: [],
+    HEAD: ['....CCCC....','..CCCCCCC5..','.CCCC5555550','.CCC55055550',
+           '..C555555550','...555555550','....5555550.','.....0550...'],
+    TORSO: ['.05555550.','0555555550','0555555550','0556655550','0555555550',
+            '0556655550','0555555550','.09999990.','.09AAAA990','09AAAAAA90'],
+    ARM_F: ['6550','6550','6550','6550','6550','.00.'],
+    ARM_B: ['0566','0566','0566','0566','0566','.00.'],
+    LEG_F: ['6550','6550','6550','6550','6550','6550','6550'],
+    LEG_B: ['0566','0566','0566','0566','0566','0566','0566'],
+    BOOT_F: ['65550','65550'],
+    BOOT_B: ['05666','05666']
+  };
+
+  /* 측면 백골 */
+  var P_BONE = {
+    PLUME: [],
+    HEAD: ['....0000....','..09999990..','.0999999990.','.0900999990.',
+           '.0999999990.','..09999990..','...09909900.','.....0990...'],
+    TORSO: ['.09999990.','0999999990','0.999999.0','0999999990','0.999999.0',
+            '0999999990','0.999999.0','..099990..','.09999990.','0999999990'],
+    ARM_F: ['0990','0990','0990','0990','0990','.00.'],
+    ARM_B: ['0990','0990','0990','0990','0990','.00.'],
+    LEG_F: ['0990','0990','0990','0990','0990','0990','0990'],
+    LEG_B: ['0990','0990','0990','0990','0990','0990','0990'],
+    BOOT_F: ['09990','09990'],
+    BOOT_B: ['09990','09990']
+  };
+
+  /* ── 그림(Grimm) — 스테이지 1 비행 악마 ──── */
+  var PAL_GRIMM = {'0':'#0B0710','2':'#E23E4E','3':'#A32332','5':'#FFD84A','6':'#EDE6D8'};
+  var G = {
+    BODY: ['...0....0...','...03..30...','..0333330...','.033333330..',
+           '.0322552230.','.0322222230.','.0366666230.','..03222230..',
+           '..03222230..','...032230...','...032230...','....0330....',
+           '....0..0....'],
+    WING_UP: ['..2...........','.232..........','.2332.........','.23332........',
+              '.233332.......','.2333332......','.23333332.....','..2333333.....',
+              '...222222.....'],
+    WING_DOWN: ['...222222.....','..2333333.....','.23333332.....','.2333332......',
+                '.233332.......','.23332........','..232.........'],
+    LEGS: ['.03..30.','.03..30.','03600630','.66..66.']
+  };
+
+  function grimmPose(wingUp, dy) {
+    dy = dy || 0;
+    var g = blank();
+    if (wingUp) stamp(g, G.WING_UP, 6, 7 + dy);
+    else        stamp(g, G.WING_DOWN, 6, 14 + dy);
+    stamp(g, G.BODY, 14, 11 + dy);
+    stamp(g, G.LEGS, 16, 23 + dy);
+    return g.map(function (r) { return r.join(''); });
+  }
+
+  var GRIMM_CLIPS = {
+    fly:  { label:'비행', fps:8, frames:[grimmPose(true, 0), grimmPose(true, -1),
+                                        grimmPose(false, 1), grimmPose(false, 0)] },
+    land: { label:'착지 · 유일한 공격 기회', fps:2, frames:[grimmPose(false, 2), grimmPose(false, 2)] }
+  };
+
+  /* ── 좀비(Ghoul) — 지면에서 솟아나 느리게 전진 ── */
+  var PAL_GHOUL = {'0':'#0B0710','1':'#A8C08A','2':'#7A9660','3':'#4E6B3C','4':'#2E4226','5':'#6B5540','6':'#EDE6D8'};
+  var Z = {
+    HEAD: ['..00000...','.0222220..','02122260..','02222260..','.0222230..','..023330..','...0330...'],
+    TORSO: ['..02220...','.0222220..','.0233220..','.0223220..','.0555520..','.0555520..','.0533520..','..05550...','..05550...','...000....'],
+    ARM: ['0222222.','0233332.','.011110.'],
+    LEG: ['0220','0220','0330','0330','0330','0330','0440','0440']
+  };
+  function ghoulPose(dxF, dxB, dy) {
+    var g = blank();
+    stamp(g, Z.LEG, 11 + dxB, 23 + dy);
+    stamp(g, Z.TORSO, 11, 14 + dy);
+    stamp(g, Z.HEAD, 13, 8 + dy);
+    stamp(g, Z.LEG, 16 + dxF, 23 + dy);
+    stamp(g, Z.ARM, 17, 16 + dy);
+    return g.map(function (r) { return r.join(''); });
+  }
+
+  /* ── 까마귀(Corvid) — 정지 → 급강하 → 활공 ── */
+  var PAL_CROW = {'0':'#0B0710','1':'#4A3C5E','2':'#251D33','3':'#FFD84A'};
+  var C = {
+    GLIDE: ['....000.......','..00111000....','.011111111030.','.012222111330.','..01222110300.','...012210000..','....00000.....'],
+    DIVE:  ['..000.........','.01110........','.0111110......','.012221103300.','..0122211033..','...012221100..','....0111100...','.....01100....']
+  };
+  function crowPose(mode, dy) {
+    var g = blank();
+    stamp(g, mode === 'dive' ? C.DIVE : C.GLIDE, 9, 12 + dy);
+    return g.map(function (r) { return r.join(''); });
+  }
+
+  var ENEMIES = {
+    ghoul: { label:'좀비', pal:PAL_GHOUL, fps:4,
+             frames:[ghoulPose(1, -1, 0), ghoulPose(0, 0, -1), ghoulPose(-1, 1, 0), ghoulPose(0, 0, -1)],
+             note:'HP 20 · 가장 느림. 지면에서 솟아나 직선으로만 전진한다. 위협은 낮지만 좁은 발판에서 밀어내는 역할을 한다.' },
+    crow:  { label:'까마귀', pal:PAL_CROW, fps:6,
+             frames:[crowPose('glide', 0), crowPose('glide', -1), crowPose('dive', 1), crowPose('dive', 2)],
+             note:'HP 12 · 정지 상태로 대기하다 플레이어가 아래를 지나면 급강하한다. 한 번 강하하면 궤도를 바꾸지 못한다.' }
+  };
+
+  /* ── 무기 7종 (오른쪽으로 날아감) ────────── */
+  var WPN = {
+    lance:  { label:'창',     rows:['.........1','0222222211'] },
+    dagger: { label:'단검',   rows:['......1','0222211'] },
+    axe:    { label:'도끼',   rows:['.111.','11311','.020.','..0..','..0..'] },
+    cross:  { label:'십자가', rows:['..1..','..1..','11111','..1..','..1..'] },
+    torch:  { label:'횃불',   rows:['.77.','7887','.88.','.03.','.03.'] },
+    discus: { label:'원반',   rows:['.111.','12221','12021','12221','.111.'] },
+    hammer: { label:'망치',   rows:['.222.','23332','.030.','..3..','..3..'] }
+  };
+
+  function blank() {
+    var g = [];
+    for (var y = 0; y < 32; y++) g.push('................................'.split(''));
+    return g;
+  }
+  function stamp(g, part, ox, oy) {
+    for (var i = 0; i < part.length; i++) {
+      var ty = oy + i;
+      if (ty < 0 || ty > 31) continue;
+      for (var j = 0; j < part[i].length; j++) {
+        var ch = part[i][j], tx = ox + j;
+        if (ch === '.' || tx < 0 || tx > 31) continue;
+        g[ty][tx] = ch;
+      }
+    }
+  }
+  function pose(o) {
+    o = o || {};
+    var dy = o.dy || 0, lf = o.lf || 0, lb = o.lb || 0,
+        af = o.af || 0, ab = o.ab || 0, afy = o.afy || 0, legY = o.legY || 0;
+    var g = blank();
+    var T = o.parts || P;
+    stamp(g, T.ARM_B, 8 + ab, 15 + dy);
+    stamp(g, T.LEG_B, 10 + lb, 22 + dy + legY);
+    stamp(g, T.BOOT_B, 9 + lb, 29 + dy + legY);
+    stamp(g, T.PLUME, 4, 2 + dy);
+    stamp(g, T.TORSO, 10, 12 + dy);
+    stamp(g, T.HEAD, 9, 4 + dy);
+    stamp(g, T.LEG_F, 15 + lf, 22 + dy + legY);
+    stamp(g, T.BOOT_F, 15 + lf, 29 + dy + legY);
+    stamp(g, T.ARM_F, 17 + af, 15 + dy + afy);
+    if (o.wpn) stamp(g, WPN[o.wpnKey || 'lance'].rows, o.wpn[0], o.wpn[1] + dy);
+    return g.map(function (r) { return r.join(''); });
+  }
+
+  var CLIPS = {
+    idle:   { label:'대기', fps:4, keys:[ {}, { dy:1 } ] },
+    walk:   { label:'걷기', fps:12, keys:[
+      { lf: 2, lb:-2, af:-1, ab: 1 }, { lf: 1, lb:-1, af:-1, ab: 1 },
+      { lf: 0, lb: 0, dy:-1 },        { lf:-1, lb: 1, af: 1, ab:-1 },
+      { lf:-2, lb: 2, af: 1, ab:-1 }, { lf:-1, lb: 1, af: 1, ab:-1 },
+      { lf: 0, lb: 0, dy:-1 },        { lf: 1, lb:-1, af:-1, ab: 1 }
+    ]},
+    jump:   { label:'점프', fps:8, keys:[
+      { dy: 2, legY:-1, af:-1 }, { dy:-1, lf: 1, lb:-1, afy:-2 },
+      { dy:-1, lf: 2, lb:-2, afy:-1 }, { dy: 0, lf: 1, lb:-2, afy: 1 }
+    ]},
+    attack: { label:'무기 던지기', fps:10, keys:[
+      { af:-2, afy: 1, wpn:[12, 19] },  // 준비 — 무기를 뒤로 당김
+      { af: 2, afy:-2, wpn:[20, 16] },  // 던지기 — 손 끝에서 놓는 순간
+      { af: 2, afy:-1, wpn:[25, 17] },  // 릴리스 — 손을 떠남
+      { af: 1,         wpn:[31, 17] }   // 복귀 — 화면 밖으로
+    ]},
+    crouch: { label:'웅크리기', fps:6, keys:[ { dy:4, legY:-4, af:-1 }, { dy:5, legY:-5, af:-1 } ] }
+  };
+
+  var wpnKey = 'lance';
+  var palKey = 'steel';
+  var STATE_PARTS = { relic: P, steel: P, bare: P_BARE, bones: P_BONE };
+  var PALS = { relic: PAL_RELIC, steel: PAL_STEEL, bare: PAL_FLESH, bones: PAL_BONE };
+
+  function rebuildFrames() {
+    Object.keys(CLIPS).forEach(function (k) {
+      CLIPS[k].frames = CLIPS[k].keys.map(function (o) {
+        var merged = {};
+        Object.keys(o).forEach(function (p) { merged[p] = o[p]; });
+        merged.wpnKey = wpnKey;
+        merged.parts = STATE_PARTS[palKey] || P;
+        return pose(merged);
+      });
+    });
+  }
+  rebuildFrames();
+
+  /* ── 정면 4상태 (타이틀·메뉴용) ───────────── */
+  var ARMORED_FRONT = [
+    '................................','...............77...............',
+    '..............7887..............','..............7887..............',
+    '............00000000............','...........0122222210...........',
+    '..........012222222210..........','..........012BB22BB210..........',
+    '..........012333333210..........','...........0233333320...........',
+    '............02333320............','..............0440..............',
+    '............01222210............','..........012222222210..........',
+    '........0122222222222210........','.........01222222222210.........',
+    '.........03412222221430.........','.........03412233221430.........',
+    '.........03412233221430.........','..........034122221430..........',
+    '..........011122221110..........','...........0122222210...........',
+    '..........012333333210..........','............034..430............',
+    '............034..430............','............034..430............',
+    '............034..430............','............044..440............',
+    '............044..440............','...........0344..4430...........',
+    '...........0344..4430...........','................................'
+  ];
+  var BARE_FRONT = [
+    '................................','................................',
+    '................................','................................',
+    '............00000000............','...........0CCCCCCCC0...........',
+    '...........0CDDDDDDC0...........','...........0C555555C0...........',
+    '...........0C505505C0...........','...........0C555555C0...........',
+    '............05555550............','..............0550..............',
+    '...........0555555550...........','..........055555555550..........',
+    '..........056555555650..........','..........056555555650..........',
+    '..........056556655650..........','..........056555555650..........',
+    '..........056555555650..........','...........0555555550...........',
+    '...........0999999990...........','...........09AAAAAA90...........',
+    '............056..650............','............056..650............',
+    '............056..650............','............056..650............',
+    '............056..650............','............065..560............',
+    '............065..560............','...........0566..6650...........',
+    '...........0566..6650...........','................................'
+  ];
+  var BONES_FRONT = [
+    '................................','................................',
+    '................................','................................',
+    '............00000000............','...........0999999990...........',
+    '..........099999999990..........','..........090099990090..........',
+    '..........099999999990..........','...........0999999990...........',
+    '............09099090............','..............0990..............',
+    '..........099999999990..........','........99.0999999990.99........',
+    '........99.....99.....99........','........99.0999999990.99........',
+    '........99.....99.....99........','........99.0999999990.99........',
+    '........99.....99.....99........','...........0999999990...........',
+    '............099..990............','.............99..99.............',
+    '.............99..99.............','.............99..99.............',
+    '.............99..99.............','.............99..99.............',
+    '.............99..99.............','.............99..99.............',
+    '.............99..99.............','............999..999............',
+    '............999..999............','................................'
+  ];
+
+  function paint(ctx, matrix, pal, px) {
+    ctx.clearRect(0, 0, 32 * px, 32 * px);
+    for (var y = 0; y < matrix.length; y++) {
+      var row = matrix[y];
+      for (var x = 0; x < 32; x++) {
+        var ch = row[x];
+        if (!ch || ch === '.') continue;
+        var col = pal[ch];
+        if (!col) continue;
+        ctx.fillStyle = col;
+        ctx.fillRect(x * px, y * px, px, px);
+      }
+    }
+  }
+
+  /* ── 무대 ───────────────────────────────── */
+  var cv = document.getElementById('stage');
+  var ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  var PX = 8;
+
+  var current = 'walk', frameIdx = 0, playing = true, slow = false;
+
+  function drawStage() {
+    var clip = CLIPS[current];
+    ctx.fillStyle = '#0A0611';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    // 지면
+    ctx.fillStyle = '#160F22';
+    ctx.fillRect(0, 31 * PX, cv.width, PX);
+    paint(ctx, clip.frames[frameIdx], PALS[palKey], PX);
+    document.getElementById('readout').textContent =
+      current + ' · ' + (frameIdx + 1) + '/' + clip.frames.length + ' · ' +
+      (slow ? Math.round(clip.fps / 3) : clip.fps) + 'fps';
+    var figs = document.querySelectorAll('#strip figure');
+    for (var i = 0; i < figs.length; i++) figs[i].classList.toggle('on', i === frameIdx);
+  }
+
+  function buildStrip() {
+    var strip = document.getElementById('strip');
+    strip.innerHTML = '';
+    CLIPS[current].frames.forEach(function (rows, i) {
+      var fig = document.createElement('figure');
+      var c = document.createElement('canvas');
+      c.width = 32 * 2; c.height = 32 * 2;
+      var cx = c.getContext('2d');
+      cx.imageSmoothingEnabled = false;
+      paint(cx, rows, PALS[palKey], 2);
+      var cap = document.createElement('figcaption');
+      cap.textContent = i + 1;
+      fig.appendChild(c); fig.appendChild(cap);
+      fig.addEventListener('click', function () { playing = false; frameIdx = i; drawStage(); syncPlay(); });
+      strip.appendChild(fig);
+    });
+  }
+
+  /* 컨트롤 */
+  var clipBox = document.getElementById('clips');
+  Object.keys(CLIPS).forEach(function (k) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = CLIPS[k].label;
+    b.setAttribute('aria-pressed', String(k === current));
+    b.addEventListener('click', function () {
+      current = k; frameIdx = 0;
+      [].forEach.call(clipBox.children, function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      buildStrip(); drawStage();
+    });
+    clipBox.appendChild(b);
+  });
+
+  var palBox = document.getElementById('pals');
+  [['steel', '강철'], ['relic', '성유물'], ['bare', '속옷'], ['bones', '백골']].forEach(function (pair) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = pair[1];
+    b.setAttribute('aria-pressed', String(pair[0] === palKey));
+    b.addEventListener('click', function () {
+      palKey = pair[0];
+      [].forEach.call(palBox.children, function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      rebuildFrames(); buildStrip(); drawStage();
+    });
+    palBox.appendChild(b);
+  });
+
+  var wpnBox = document.getElementById('wpns');
+  Object.keys(WPN).forEach(function (k) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = WPN[k].label;
+    b.setAttribute('aria-pressed', String(k === wpnKey));
+    b.addEventListener('click', function () {
+      wpnKey = k;
+      [].forEach.call(wpnBox.children, function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      rebuildFrames();
+      if (current !== 'attack') { current = 'attack'; frameIdx = 0;
+        [].forEach.call(clipBox.children, function (o) {
+          o.setAttribute('aria-pressed', String(o.textContent === CLIPS.attack.label));
+        });
+      }
+      buildStrip(); drawStage();
+    });
+    wpnBox.appendChild(b);
+  });
+
+  var playBtn = document.getElementById('playBtn');
+  function syncPlay() { playBtn.setAttribute('aria-pressed', String(playing)); }
+  playBtn.addEventListener('click', function () { playing = !playing; syncPlay(); });
+  document.getElementById('stepBtn').addEventListener('click', function () {
+    playing = false; syncPlay();
+    frameIdx = (frameIdx + 1) % CLIPS[current].frames.length;
+    drawStage();
+  });
+  var slowBtn = document.getElementById('slowBtn');
+  slowBtn.addEventListener('click', function () {
+    slow = !slow; slowBtn.setAttribute('aria-pressed', String(slow)); drawStage();
+  });
+
+  /* 정면 4상태 */
+  var STATES = [
+    { m:ARMORED_FRONT, p:PAL_RELIC, hp:'HP 3 · 선택',   nm:'성유물 갑옷', df:'무기 각성과 성흔 마법을 연다. 스스로 빛난다.' },
+    { m:ARMORED_FRONT, p:PAL_STEEL, hp:'HP 2 · 기본',   nm:'강철 갑옷',   df:'도트는 성유물과 완전히 같고 팔레트만 다르다.' },
+    { m:BARE_FRONT,    p:PAL_FLESH, hp:'HP 1 · 마지막', nm:'속옷',        df:'이동 속도 +8%. 원작의 시그니처.' },
+    { m:BONES_FRONT,   p:PAL_BONE,  hp:'종료',          nm:'백골',        df:'250ms 히트스톱 뒤 12조각으로 분해된다.' }
+  ];
+  var sheet = document.getElementById('sheet');
+  STATES.forEach(function (s) {
+    var cell = document.createElement('div');
+    cell.className = 'cell';
+    var c = document.createElement('canvas');
+    c.width = 32 * 6; c.height = 32 * 6;
+    c.setAttribute('role', 'img');
+    c.setAttribute('aria-label', s.nm + ' 상태의 32×32 정면 스프라이트');
+    cell.appendChild(c);
+    var body = document.createElement('div');
+    body.className = 'cell-body';
+    body.innerHTML = '<span class="cell-hp">' + s.hp + '</span><span class="cell-nm">' + s.nm +
+                     '</span><span class="cell-df">' + s.df + '</span>';
+    cell.appendChild(body);
+    sheet.appendChild(cell);
+    var cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    paint(cx, s.m, s.p, 6);
+  });
+
+  /* 그림 */
+  var gcv = document.getElementById('grimm');
+  var gctx = gcv.getContext('2d');
+  gctx.imageSmoothingEnabled = false;
+  var gCurrent = 'fly', gIdx = 0, gAcc = 0;
+
+  function drawGrimm() {
+    var clip = GRIMM_CLIPS[gCurrent];
+    gctx.fillStyle = '#0A0611';
+    gctx.fillRect(0, 0, gcv.width, gcv.height);
+    gctx.fillStyle = '#160F22';
+    gctx.fillRect(0, 31 * PX, gcv.width, PX);
+    paint(gctx, clip.frames[gIdx], PAL_GRIMM, PX);
+    document.getElementById('greadout').textContent =
+      gCurrent + ' · ' + (gIdx + 1) + '/' + clip.frames.length + ' · ' + clip.fps + 'fps';
+  }
+
+  var gclipBox = document.getElementById('gclips');
+  Object.keys(GRIMM_CLIPS).forEach(function (k) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = GRIMM_CLIPS[k].label;
+    b.setAttribute('aria-pressed', String(k === gCurrent));
+    b.addEventListener('click', function () {
+      gCurrent = k; gIdx = 0;
+      [].forEach.call(gclipBox.children, function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+      drawGrimm();
+    });
+    gclipBox.appendChild(b);
+  });
+
+  /* 잡몹 카드 */
+  var mobBox = document.getElementById('mobs');
+  var mobs = [];
+  Object.keys(ENEMIES).forEach(function (k) {
+    var e = ENEMIES[k];
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.style.padding = '0';
+    var c = document.createElement('canvas');
+    c.width = 32 * 5; c.height = 32 * 5;
+    c.style.width = '100%'; c.style.height = 'auto';
+    c.style.imageRendering = 'pixelated';
+    c.style.background = '#0A0611';
+    c.setAttribute('role', 'img');
+    c.setAttribute('aria-label', e.label + ' 스프라이트 애니메이션');
+    card.appendChild(c);
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:14px 18px 18px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px';
+    body.innerHTML = '<h3>' + e.label + '</h3><p style="font-size:.85rem;color:var(--dim);margin:0">' + e.note + '</p>';
+    card.appendChild(body);
+    mobBox.appendChild(card);
+    var cx = c.getContext('2d');
+    cx.imageSmoothingEnabled = false;
+    mobs.push({ ctx: cx, e: e, idx: 0, acc: 0 });
+  });
+
+  function drawMob(m) {
+    m.ctx.fillStyle = '#0A0611';
+    m.ctx.fillRect(0, 0, 32 * 5, 32 * 5);
+    m.ctx.fillStyle = '#160F22';
+    m.ctx.fillRect(0, 31 * 5, 32 * 5, 5);
+    paint(m.ctx, m.e.frames[m.idx], m.e.pal, 5);
+  }
+  mobs.forEach(drawMob);
+
+  /* 루프 */
+  var acc = 0, last = 0;
+  function loop(ts) {
+    if (!last) last = ts;
+    var dt = ts - last; last = ts;
+    if (playing) {
+      var fps = CLIPS[current].fps / (slow ? 3 : 1);
+      acc += dt;
+      if (acc >= 1000 / fps) {
+        acc = 0;
+        frameIdx = (frameIdx + 1) % CLIPS[current].frames.length;
+        drawStage();
+      }
+    }
+    gAcc += dt;
+    if (gAcc >= 1000 / GRIMM_CLIPS[gCurrent].fps) {
+      gAcc = 0;
+      gIdx = (gIdx + 1) % GRIMM_CLIPS[gCurrent].frames.length;
+      drawGrimm();
+    }
+    mobs.forEach(function (m) {
+      m.acc += dt;
+      if (m.acc >= 1000 / m.e.fps) {
+        m.acc = 0;
+        m.idx = (m.idx + 1) % m.e.frames.length;
+        drawMob(m);
+      }
+    });
+    requestAnimationFrame(loop);
+  }
+
+  buildStrip();
+  drawStage();
+  drawGrimm();
+  syncPlay();
+  requestAnimationFrame(loop);
+})();
+</script>

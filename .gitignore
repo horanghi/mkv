@@ -1,0 +1,12 @@
+# 도구 내부 데이터
+.omc/
+
+# OS
+.DS_Store
+
+# 개발 (M0 착수 후)
+node_modules/
+dist/
+.vercel/
+*.local
+coverage/
