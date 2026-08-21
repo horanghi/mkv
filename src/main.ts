@@ -1,17 +1,21 @@
 import { Application, Container, Graphics, TextureSource } from 'pixi.js'
-import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TILE_SIZE } from './core/config.ts'
+import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_RATE, TILE_SIZE } from './core/config.ts'
+import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/input.ts'
+import { KeyboardSource } from './core/keyboard.ts'
+import { INITIAL_LOOP, advance, requestHitstop, type LoopState } from './core/loop.ts'
 import { computeViewport } from './core/viewport.ts'
 import { loadBalance } from './data/load.ts'
 import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
 
 /**
- * 부트스트랩. 게임 로직은 없다 — m0-2 에서 `core/loop.ts` 가 들어온다.
+ * 부트스트랩 + 고정 타임스텝 루프 구동.
  *
- * 여기서 확인할 것은 하나다: 480x270 이 정수 배율로 올라가고,
- * 밸런스 JSON 이 파싱되고, 디버그 오버레이가 뜨는가.
+ * 아직 움직이는 것은 없다 — 이동·충돌은 m0-3, m0-4 다.
+ * 여기서 눈으로 확인할 것은 두 가지다.
+ *   1. tps 가 60.0 에 붙어 있고 프레임 그래프가 평평한가
+ *   2. X 를 눌러 히트스톱을 걸면 **틱만** 멈추고 UI 는 계속 도는가
  */
 
-// 픽셀아트 기본값. 이걸 빼먹으면 모든 스프라이트가 뭉갠 채로 올라온다.
 TextureSource.defaultOptions.scaleMode = 'nearest'
 
 const host = document.querySelector<HTMLElement>('#app')
@@ -34,19 +38,15 @@ host.style.position = 'relative'
 host.appendChild(app.canvas)
 
 const overlay = new DebugOverlay(host)
+const keyboard = new KeyboardSource(window)
 
 // --- 그레이 박스 플레이스홀더 -------------------------------------------------
-// 타일 격자와 플레이어 히트박스만. M0 는 아트를 만들지 않는다.
 const scene = new Container()
 app.stage.addChild(scene)
 
 const grid = new Graphics()
-for (let x = 0; x <= LOGICAL_WIDTH; x += TILE_SIZE) {
-  grid.moveTo(x, 0).lineTo(x, LOGICAL_HEIGHT)
-}
-for (let y = 0; y <= LOGICAL_HEIGHT; y += TILE_SIZE) {
-  grid.moveTo(0, y).lineTo(LOGICAL_WIDTH, y)
-}
+for (let x = 0; x <= LOGICAL_WIDTH; x += TILE_SIZE) grid.moveTo(x, 0).lineTo(x, LOGICAL_HEIGHT)
+for (let y = 0; y <= LOGICAL_HEIGHT; y += TILE_SIZE) grid.moveTo(0, y).lineTo(LOGICAL_WIDTH, y)
 grid.stroke({ width: 1, color: 0x241c2e })
 scene.addChild(grid)
 
@@ -55,13 +55,100 @@ const ground = new Graphics()
   .fill(0x2a2438)
 scene.addChild(ground)
 
-const player = new Graphics()
+const box = new Graphics()
   .rect(0, 0, balance.player.hitbox.width, balance.player.hitbox.height)
   .fill(0x8695ac)
-player.position.set(64, LOGICAL_HEIGHT - TILE_SIZE * 2 - balance.player.hitbox.height)
-scene.addChild(player)
+box.position.set(64, LOGICAL_HEIGHT - TILE_SIZE * 2 - balance.player.hitbox.height)
+scene.addChild(box)
 
-// --- 뷰포트 -------------------------------------------------------------------
+/** 틱이 실제로 돌고 있음을 보여주는 표시기. 1초에 한 바퀴 돈다. */
+const tickHand = new Graphics()
+tickHand.position.set(LOGICAL_WIDTH - 24, 24)
+scene.addChild(tickHand)
+
+// --- 루프 ---------------------------------------------------------------------
+let loop: LoopState = INITIAL_LOOP
+let input: InputState = INITIAL_INPUT
+
+let lastFrameAt = performance.now()
+let logicMs = 0
+
+/**
+ * 틱이 소비하기 전까지 프레임 입력을 모아둔다.
+ *
+ * 120Hz·144Hz 화면에서는 틱이 하나도 안 도는 프레임이 생긴다. 거기서 폴링한
+ * 입력을 그냥 버리면 짧은 탭이 통째로 사라진다 — 틱이 돌 때 비운다.
+ */
+let pendingFrame = 0
+
+// 최근 1초 계측
+let framesInWindow = 0
+let ticksInWindow = 0
+let windowStart = lastFrameAt
+let fps = 0
+let ticksPerSecond = 0
+let droppedTicks = 0
+
+app.ticker.add(() => {
+  const now = performance.now()
+  const frameMs = now - lastFrameAt
+  lastFrameAt = now
+
+  // 폴링은 히트스톱 중에도 멈추지 않는다 — 입력을 삼키면 안 된다.
+  pendingFrame |= keyboard.poll()
+
+  const stepped = advance(loop, frameMs)
+  loop = stepped.state
+  droppedTicks = stepped.droppedTicks
+
+  const logicStart = performance.now()
+  for (let i = 0; i < stepped.ticks; i += 1) {
+    // 캐치업 틱은 같은 입력을 유지한다.
+    input = advanceInput(input, pendingFrame)
+
+    // 히트스톱 시연: 공격 키로 갑옷 파괴와 같은 180ms 를 건다 (GOAL 비협상 원칙 4).
+    if (isDown(input.pressed, 'attack')) loop = requestHitstop(loop, 180)
+  }
+  logicMs = performance.now() - logicStart
+  if (stepped.ticks > 0) pendingFrame = 0
+
+  ticksInWindow += stepped.ticks
+  framesInWindow += 1
+  if (now - windowStart >= 1000) {
+    const seconds = (now - windowStart) / 1000
+    fps = framesInWindow / seconds
+    ticksPerSecond = ticksInWindow / seconds
+    framesInWindow = 0
+    ticksInWindow = 0
+    windowStart = now
+  }
+
+  // 렌더는 히트스톱 중에도 계속 돈다.
+  const angle = ((loop.tick % TICK_RATE) / TICK_RATE) * Math.PI * 2
+  tickHand
+    .clear()
+    .moveTo(0, 0)
+    .lineTo(Math.sin(angle) * 8, -Math.cos(angle) * 8)
+    .stroke({ width: 1, color: loop.hitstopMs > 0 ? 0xe23e4e : 0xf0c04a })
+
+  box.tint = loop.hitstopMs > 0 ? 0xffffff : 0x8695ac
+
+  const metrics: DebugMetrics = {
+    fps,
+    frameMs,
+    logicMs,
+    tick: loop.tick,
+    ticksPerSecond,
+    droppedTicks,
+    alpha: stepped.alpha,
+    hitstopMs: loop.hitstopMs,
+    entities: 1,
+    state: loop.hitstopMs > 0 ? 'hitstop' : 'idle',
+  }
+  overlay.render(metrics)
+})
+
+// --- 뷰포트 · 디버그 키 -------------------------------------------------------
 function applyViewport(): void {
   const vp = computeViewport(window.innerWidth, window.innerHeight)
   app.canvas.style.width = `${vp.width}px`
@@ -70,38 +157,11 @@ function applyViewport(): void {
 applyViewport()
 window.addEventListener('resize', applyViewport)
 
-// --- 디버그 -------------------------------------------------------------------
 window.addEventListener('keydown', (e) => {
   if (e.key === 'F1') {
     e.preventDefault()
     overlay.toggle()
   }
-})
-
-// 임시 계측. m0-2 에서 고정 타임스텝 루프로 교체된다.
-let frames = 0
-let fps = 0
-let lastSecond = performance.now()
-
-app.ticker.add(() => {
-  frames += 1
-  const now = performance.now()
-  if (now - lastSecond >= 1000) {
-    fps = (frames * 1000) / (now - lastSecond)
-    frames = 0
-    lastSecond = now
-  }
-
-  const metrics: DebugMetrics = {
-    fps,
-    frameMs: app.ticker.deltaMS,
-    logicMs: 0,
-    renderMs: 0,
-    tick: 0,
-    entities: 1,
-    state: 'boot',
-  }
-  overlay.render(metrics)
 })
 
 console.info(

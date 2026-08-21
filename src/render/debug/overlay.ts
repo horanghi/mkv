@@ -1,10 +1,10 @@
-import { FRAME_BUDGET_MS, LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_RATE } from '../../core/config.ts'
+import { FRAME_BUDGET_MS, LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_MS, TICK_RATE } from '../../core/config.ts'
 
 /**
- * 디버그 오버레이 — **스텁**.
+ * 디버그 오버레이.
  *
- * 지금은 프레임 타임과 틱 카운터만 띄운다. 히트박스·속도 벡터·상태 머신 표시는
- * 그릴 대상(m0-3 타일맵, m0-4 플레이어)이 생긴 다음에 붙인다.
+ * 지금은 루프 계측(틱/초, 프레임 그래프, 히트스톱)까지다.
+ * 히트박스·속도 벡터는 그릴 대상이 생기는 m0-3, m0-4 에서 붙인다.
  *
  * 계측 대상이 아니다(vitest coverage 에서 render/ 제외). 시각으로 검증한다.
  * → docs/10-tech-spec.md 10.9, 10.10
@@ -14,8 +14,11 @@ export interface DebugMetrics {
   readonly fps: number
   readonly frameMs: number
   readonly logicMs: number
-  readonly renderMs: number
   readonly tick: number
+  readonly ticksPerSecond: number
+  readonly droppedTicks: number
+  readonly alpha: number
+  readonly hitstopMs: number
   readonly entities: number
   readonly state: string
 }
@@ -24,55 +27,113 @@ export const EMPTY_METRICS: DebugMetrics = {
   fps: 0,
   frameMs: 0,
   logicMs: 0,
-  renderMs: 0,
   tick: 0,
+  ticksPerSecond: 0,
+  droppedTicks: 0,
+  alpha: 0,
+  hitstopMs: 0,
   entities: 0,
   state: '-',
 }
 
+const GRAPH_WIDTH = 120
+const GRAPH_HEIGHT = 34
+/** 그래프 세로 상한. 프레임 예산의 두 배까지 보이면 충분하다. */
+const GRAPH_MAX_MS = TICK_MS * 2
+
 export class DebugOverlay {
-  private readonly element: HTMLElement
+  private readonly root: HTMLElement
+  private readonly text: HTMLElement
+  private readonly graph: HTMLCanvasElement
+  private readonly graphCtx: CanvasRenderingContext2D | null
+  private readonly history: number[] = []
   private visible = true
 
   constructor(parent: HTMLElement) {
-    this.element = document.createElement('pre')
-    this.element.style.cssText = [
+    this.root = document.createElement('div')
+    this.root.style.cssText = [
       'position:absolute',
       'top:8px',
       'left:8px',
-      'margin:0',
+      'display:flex',
+      'flex-direction:column',
+      'gap:4px',
       'padding:6px 8px',
-      'font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace',
-      'color:#EDE6D8',
       'background:rgba(11,7,16,.72)',
+      'color:#EDE6D8',
+      'font:11px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace',
       'pointer-events:none',
       'white-space:pre',
       'z-index:10',
     ].join(';')
-    parent.appendChild(this.element)
+
+    this.text = document.createElement('div')
+    this.root.appendChild(this.text)
+
+    this.graph = document.createElement('canvas')
+    this.graph.width = GRAPH_WIDTH
+    this.graph.height = GRAPH_HEIGHT
+    this.graph.style.cssText = `width:${GRAPH_WIDTH}px;height:${GRAPH_HEIGHT}px;image-rendering:pixelated`
+    this.root.appendChild(this.graph)
+    this.graphCtx = this.graph.getContext('2d')
+
+    parent.appendChild(this.root)
     this.render(EMPTY_METRICS)
   }
 
   toggle(): void {
     this.visible = !this.visible
-    this.element.style.display = this.visible ? 'block' : 'none'
+    this.root.style.display = this.visible ? 'flex' : 'none'
   }
 
   render(m: DebugMetrics): void {
+    this.push(m.frameMs)
     if (!this.visible) return
-    const over = m.logicMs > FRAME_BUDGET_MS.logic ? ' !' : ''
-    this.element.textContent = [
+
+    const overBudget = m.logicMs > FRAME_BUDGET_MS.logic
+    const tickDrift = Math.abs(m.ticksPerSecond - TICK_RATE) > 0.5
+
+    this.text.textContent = [
       `${LOGICAL_WIDTH}x${LOGICAL_HEIGHT} @ ${TICK_RATE}Hz`,
-      `fps    ${m.fps.toFixed(0)}  frame ${m.frameMs.toFixed(2)}ms`,
-      `logic  ${m.logicMs.toFixed(2)}ms${over}  render ${m.renderMs.toFixed(2)}ms`,
-      `tick   ${m.tick}  entities ${m.entities}`,
+      `fps    ${m.fps.toFixed(1).padStart(5)}   frame ${m.frameMs.toFixed(2)}ms`,
+      `tps    ${m.ticksPerSecond.toFixed(1).padStart(5)}${tickDrift ? ' !' : '  '} logic ${m.logicMs.toFixed(2)}ms${overBudget ? ' !' : ''}`,
+      `tick   ${m.tick}  alpha ${m.alpha.toFixed(2)}  drop ${m.droppedTicks}`,
+      `stop   ${m.hitstopMs.toFixed(0)}ms  entities ${m.entities}`,
       `state  ${m.state}`,
       // TODO(m0-3): 타일 충돌 질의 박스
       // TODO(m0-4): 히트박스 · 속도 벡터 · 코요테/버퍼 잔여 프레임
     ].join('\n')
+
+    this.drawGraph()
   }
 
   destroy(): void {
-    this.element.remove()
+    this.root.remove()
+  }
+
+  private push(frameMs: number): void {
+    this.history.push(frameMs)
+    if (this.history.length > GRAPH_WIDTH) this.history.shift()
+  }
+
+  private drawGraph(): void {
+    const ctx = this.graphCtx
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, GRAPH_WIDTH, GRAPH_HEIGHT)
+    ctx.fillStyle = 'rgba(36,28,46,.9)'
+    ctx.fillRect(0, 0, GRAPH_WIDTH, GRAPH_HEIGHT)
+
+    // 예산선. 막대가 이 선 아래에 붙어 평평하면 정상이다.
+    const budgetY = GRAPH_HEIGHT - (TICK_MS / GRAPH_MAX_MS) * GRAPH_HEIGHT
+    ctx.fillStyle = '#5F6E85'
+    ctx.fillRect(0, Math.round(budgetY), GRAPH_WIDTH, 1)
+
+    for (let i = 0; i < this.history.length; i += 1) {
+      const ms = this.history[i] ?? 0
+      const h = Math.min(GRAPH_HEIGHT, (ms / GRAPH_MAX_MS) * GRAPH_HEIGHT)
+      ctx.fillStyle = ms > TICK_MS * 1.5 ? '#E23E4E' : ms > TICK_MS * 1.1 ? '#F0C04A' : '#8695AC'
+      ctx.fillRect(i, GRAPH_HEIGHT - h, 1, h)
+    }
   }
 }
