@@ -2,7 +2,7 @@
 
 Build directive. A browser hardcore 2D platformer in the Ghosts 'n Goblins lineage: brutal but fair, with getting hit as the best-looking thing on screen.
 
-**Stack.** TypeScript 5 · PixiJS v8 · Vite · Vercel. Custom fixed-timestep physics, no lib. Tiled, Aseprite, Howler, localStorage.
+**Stack.** TypeScript 7 · PixiJS v8 · Vite · Vercel. Custom fixed-timestep physics, no lib. Tiled, Aseprite, Howler, localStorage.
 
 ## Spec: `docs/`
 

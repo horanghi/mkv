@@ -1,0 +1,12 @@
+{
+  "$source": "docs/03-weapons-magic.md 3.2",
+  "weapons": [
+    { "id": "lance",  "name": "창",    "damage": 10, "cooldownFrames": 20, "speed": 320, "arc": "straight", "maxOnScreen": 2 },
+    { "id": "dagger", "name": "단검",  "damage": 6,  "cooldownFrames": 10, "speed": 400, "arc": "straight", "maxOnScreen": 3 },
+    { "id": "torch",  "name": "횃불",  "damage": 8,  "cooldownFrames": 30, "speed": 200, "arc": "parabolic", "maxOnScreen": 2 },
+    { "id": "axe",    "name": "도끼",  "damage": 22, "cooldownFrames": 36, "speed": 240, "arc": "parabolic", "maxOnScreen": 2 },
+    { "id": "cross",  "name": "십자가", "damage": 14, "cooldownFrames": 28, "speed": 280, "arc": "straight", "maxOnScreen": 2 },
+    { "id": "discus", "name": "원반",  "damage": 9,  "cooldownFrames": 24, "speed": 300, "arc": "bounce", "maxOnScreen": 2 },
+    { "id": "hammer", "name": "망치",  "damage": 16, "cooldownFrames": 32, "speed": 260, "arc": "parabolic", "maxOnScreen": 2 }
+  ]
+}

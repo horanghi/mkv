@@ -1,0 +1,27 @@
+{
+  "name": "grimhollow",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "마령촌 (GRIMHOLLOW) — browser hardcore 2D action platformer",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "pixi.js": "^8.20.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}

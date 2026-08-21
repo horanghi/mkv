@@ -1,0 +1,33 @@
+{
+  "$source": "docs/02-core-mechanics.md 2.1-2.6",
+  "hitbox": { "width": 12, "height": 26 },
+  "crouchHitbox": { "width": 12, "height": 16 },
+  "footProbe": { "width": 10, "depth": 2 },
+
+  "runSpeed": 110,
+  "accel": 900,
+  "decel": 1400,
+  "airAccel": 0,
+  "bareSpeedBonus": 0.08,
+
+  "jumpVelocity": -420,
+  "gravityRising": 1500,
+  "gravityFalling": 1750,
+  "maxFallSpeed": 480,
+
+  "coyoteFrames": 5,
+  "jumpBufferFrames": 6,
+  "cornerCorrectionPx": 3,
+  "ledgeGripFrames": 2,
+
+  "attackStartupFrames": 3,
+  "attackRecoveryFrames": 8,
+  "attackUpRecoveryFrames": 12,
+
+  "iFrames": { "hit": 72, "relicPickup": 30, "respawn": 90 },
+  "hitFlashPeriodFrames": 4,
+
+  "startingLives": 3,
+  "stageTimeLimitSeconds": 300,
+  "timeWarningSeconds": 30
+}

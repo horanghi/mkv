@@ -1,0 +1,12 @@
+{
+  "$source": "docs/05-enemies-bosses.md 5.4",
+  "bosses": [
+    { "id": "cairn",     "name": "캐른",         "hp": 300, "stage": "S1", "phases": 3, "weakPointMultiplier": 0.5 },
+    { "id": "morg_mag",  "name": "모르그 & 마그", "hp": 220, "stage": "S2", "phases": 2, "count": 2 },
+    { "id": "byrna",     "name": "비르나",        "hp": 340, "stage": "S3", "phases": 3 },
+    { "id": "muck",      "name": "뮤크",          "hp": 160, "stage": "S4", "phases": 3, "count": 3 },
+    { "id": "galahad",   "name": "갈라드",        "hp": 400, "stage": "S5", "phases": 3 },
+    { "id": "asmodeus",  "name": "아스모데우스",  "hp": 700, "stage": "S6", "phases": 4 },
+    { "id": "lucian",    "name": "루시안",        "hp": 900, "stage": "P6", "phases": 5 }
+  ]
+}
