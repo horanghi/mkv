@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 import type { JumpArc } from '../../entities/player/arc.ts'
+import type { Projectile } from '../../entities/projectiles/projectile.ts'
 import { boxOf, type Body } from '../../physics/body.ts'
 import { warningProgress, type CrumbleState } from '../../physics/crumble.ts'
 import { TILE, tileAt, type Tilemap } from '../../physics/tilemap.ts'
@@ -22,6 +23,7 @@ const COLOR = {
   bodyGrounded: 0xf0c04a,
   arc: 0x8a5f14,
   arcApex: 0xf0c04a,
+  projectile: 0xedf2fa,
 } as const
 
 export class GreyboxRenderer {
@@ -29,9 +31,10 @@ export class GreyboxRenderer {
   private readonly terrain = new Graphics()
   private readonly arc = new Graphics()
   private readonly bodies = new Graphics()
+  private readonly shots = new Graphics()
 
   constructor(stage: Container) {
-    stage.addChild(this.grid, this.terrain, this.arc, this.bodies)
+    stage.addChild(this.grid, this.terrain, this.arc, this.bodies, this.shots)
   }
 
   /** 격자는 지형과 달리 매 틱 다시 그릴 필요가 없다. */
@@ -96,6 +99,13 @@ export class GreyboxRenderer {
     if (apex) {
       g.rect(Math.round(originX + apex.x * direction) - 1, Math.round(originY + apex.y) - 1, 3, 3)
         .fill(COLOR.arcApex)
+    }
+  }
+
+  drawProjectiles(projectiles: readonly Projectile[]): void {
+    const g = this.shots.clear()
+    for (const p of projectiles) {
+      g.rect(Math.round(p.x), Math.round(p.y), p.width, p.height).fill(COLOR.projectile)
     }
   }
 

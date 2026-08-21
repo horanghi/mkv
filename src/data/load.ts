@@ -53,3 +53,10 @@ export function findWeapon(
 ): WeaponBalance | undefined {
   return balance.weapons.find((w) => w.id === id)
 }
+
+/** 반드시 있어야 하는 무기를 가져온다. 없으면 데이터가 망가진 것이므로 던진다. */
+export function requireWeapon(balance: Balance, id: string): WeaponBalance {
+  const weapon = findWeapon(balance, id)
+  if (!weapon) throw new Error(`무기 데이터가 없다: "${id}"`)
+  return weapon
+}

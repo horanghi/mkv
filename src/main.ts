@@ -4,9 +4,16 @@ import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/inp
 import { KeyboardSource } from './core/keyboard.ts'
 import { INITIAL_LOOP, advance, requestHitstop, type LoopState } from './core/loop.ts'
 import { computeViewport } from './core/viewport.ts'
-import { loadBalance } from './data/load.ts'
+import { loadBalance, requireWeapon } from './data/load.ts'
 import { simulateJumpArc } from './entities/player/arc.ts'
 import { createPlayer, stepPlayer, type Player } from './entities/player/player.ts'
+import {
+  EMPTY_WORLD,
+  countOf,
+  spawnProjectile,
+  stepProjectiles,
+  type ProjectileWorld,
+} from './entities/projectiles/projectile.ts'
 import {
   INITIAL_CRUMBLE,
   resetCrumble,
@@ -14,6 +21,7 @@ import {
   touchCrumbling,
   type CrumbleState,
 } from './physics/crumble.ts'
+import { boxOf } from './physics/body.ts'
 import { parseTilemap, type Tilemap } from './physics/tilemap.ts'
 import { GreyboxRenderer } from './render/debug/greybox.ts'
 import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
@@ -23,8 +31,8 @@ import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
  *
  * 답할 질문은 하나다 — **점프가 재미있는가.**
  *
- *   ← →  이동      Z / Space  점프      X  공격      ↓  웅크리기
- *   F1   오버레이  F2  궤도 표시        R  리셋
+ *   ← →  이동      Z / Space  점프      X  공격(창)      ↓  웅크리기
+ *   ↑/↓ + X 로 위아래 공격. F1 오버레이 · F2 궤도 표시 · R 리셋
  */
 
 TextureSource.defaultOptions.scaleMode = 'nearest'
@@ -92,7 +100,11 @@ greybox.drawGrid(LEVEL)
 let map: Tilemap = LEVEL
 let crumble: CrumbleState = INITIAL_CRUMBLE
 let player: Player = createPlayer(SPAWN.x, SPAWN.y, balance.player)
+let shots: ProjectileWorld = EMPTY_WORLD
 let showArc = true
+
+/** M0 의 유일한 무기. 나머지 6종은 M2 다. */
+const LANCE = requireWeapon(balance, 'lance')
 
 greybox.drawTerrain(map, crumble)
 
@@ -103,6 +115,7 @@ function reset(): void {
   map = LEVEL
   crumble = resetCrumble()
   player = createPlayer(SPAWN.x, SPAWN.y, balance.player)
+  shots = EMPTY_WORLD
 }
 
 function stepWorld(input: InputState): InputState {
@@ -112,6 +125,15 @@ function stepWorld(input: InputState): InputState {
   const stepped = stepPlayer(player, input, map, balance.player, TICK_SECONDS)
   player = stepped.player
   crumble = touchCrumbling(ticked.state, map, stepped.crumbled)
+
+  shots = stepProjectiles(shots, map, TICK_SECONDS)
+  if (player.attack.fired && player.attack.direction) {
+    shots = spawnProjectile(shots, LANCE, {
+      origin: boxOf(player.body),
+      facing: player.facing,
+      direction: player.attack.direction,
+    })
+  }
 
   // 구덩이에 빠지면 되돌린다. 낙사 처리는 m1 이다.
   if (player.body.y > LOGICAL_HEIGHT) reset()
@@ -150,7 +172,7 @@ app.ticker.add(() => {
     input = advanceInput(input, pendingFrame)
     if (isDown(input.pressed, 'restart')) reset()
     input = stepWorld(input)
-    // 공격이 나가는 순간 히트스톱을 살짝 건다. 투사체는 m0-5 다.
+    // 발사 순간 아주 짧은 히트스톱. 던지는 손맛을 만드는 최소 장치다.
     if (player.attack.fired) loop = requestHitstop(loop, 40)
   }
   logicMs = performance.now() - logicStart
@@ -174,6 +196,7 @@ app.ticker.add(() => {
     player.body.y,
     player.facing,
   )
+  greybox.drawProjectiles(shots.projectiles)
   greybox.drawBodies([player.body])
 
   const metrics: DebugMetrics = {
@@ -185,12 +208,13 @@ app.ticker.add(() => {
     droppedTicks,
     alpha: stepped.alpha,
     hitstopMs: loop.hitstopMs,
-    entities: 1,
+    entities: 1 + shots.projectiles.length,
     state: player.state,
     velocity: [player.body.vx, player.body.vy],
     coyoteFrames: player.timers.coyoteFrames,
     jumpBufferFrames: input.buffers.jump,
     grounded: player.body.onGround,
+    shots: `${countOf(shots, LANCE.id)}/${LANCE.maxOnScreen}`,
   }
   overlay.render(metrics)
 })
@@ -222,7 +246,15 @@ if (import.meta.env.DEV) {
       app,
       arc: ARC,
       reset,
-      snapshot: () => ({ tick: loop.tick, hitstopMs: loop.hitstopMs, player, map, crumble }),
+      snapshot: () => ({
+        tick: loop.tick,
+        hitstopMs: loop.hitstopMs,
+        input,
+        player,
+        shots,
+        map,
+        crumble,
+      }),
       capture: async () => (await app.renderer.extract.base64(app.stage)) as string,
     },
   })

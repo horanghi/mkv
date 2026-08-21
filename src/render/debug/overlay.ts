@@ -26,6 +26,8 @@ export interface DebugMetrics {
   readonly coyoteFrames: number
   readonly jumpBufferFrames: number
   readonly grounded: boolean
+  /** "1/2" 형태. 화면 동시 발사 상한이 걸려 있는지 눈으로 본다. */
+  readonly shots: string
 }
 
 export const EMPTY_METRICS: DebugMetrics = {
@@ -43,6 +45,7 @@ export const EMPTY_METRICS: DebugMetrics = {
   coyoteFrames: 0,
   jumpBufferFrames: 0,
   grounded: false,
+  shots: '0/0',
 }
 
 const GRAPH_WIDTH = 120
@@ -110,7 +113,7 @@ export class DebugOverlay {
       `stop   ${m.hitstopMs.toFixed(0)}ms  entities ${m.entities}`,
       `state  ${m.state}${m.grounded ? '' : ' (air)'}`,
       `vel    ${m.velocity[0].toFixed(1).padStart(6)} ${m.velocity[1].toFixed(1).padStart(7)}`,
-      `coyote ${m.coyoteFrames}  buffer ${m.jumpBufferFrames}`,
+      `coyote ${m.coyoteFrames}  buffer ${m.jumpBufferFrames}  shots ${m.shots}`,
     ].join('\n')
 
     this.drawGraph()

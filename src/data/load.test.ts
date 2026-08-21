@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseBosses, parseEnemies, parsePlayer, parseWeapons } from './balance.ts'
 import { BalanceError } from './validate.ts'
-import { findWeapon, loadBalance, parseBalance } from './load.ts'
+import { findWeapon, loadBalance, parseBalance, requireWeapon } from './load.ts'
 
 const balance = loadBalance()
 
@@ -62,6 +62,11 @@ describe('밸런스 로드', () => {
 
   it('없는 무기는 undefined 를 준다', () => {
     expect(findWeapon(balance, 'chainsaw')).toBeUndefined()
+  })
+
+  it('반드시 있어야 하는 무기가 없으면 던진다', () => {
+    expect(requireWeapon(balance, 'lance').id).toBe('lance')
+    expect(() => requireWeapon(balance, 'chainsaw')).toThrow(/무기 데이터가 없다/)
   })
 
   it('좀비 HP 20, 캐른 HP 300 — 데미지 표의 기준값', () => {
