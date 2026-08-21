@@ -1,19 +1,26 @@
-import { Application, Container, Graphics, TextureSource } from 'pixi.js'
-import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_RATE, TILE_SIZE } from './core/config.ts'
+import { Application, Container, TextureSource } from 'pixi.js'
+import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_SECONDS } from './core/config.ts'
 import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/input.ts'
 import { KeyboardSource } from './core/keyboard.ts'
 import { INITIAL_LOOP, advance, requestHitstop, type LoopState } from './core/loop.ts'
 import { computeViewport } from './core/viewport.ts'
 import { loadBalance } from './data/load.ts'
+import { createBody, resolve, type Body } from './physics/body.ts'
+import { INITIAL_CRUMBLE, resetCrumble, tickCrumble, touchCrumbling, type CrumbleState } from './physics/crumble.ts'
+import { parseTilemap, type Tilemap } from './physics/tilemap.ts'
 import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
+import { GreyboxRenderer } from './render/debug/greybox.ts'
 
 /**
- * 부트스트랩 + 고정 타임스텝 루프 구동.
+ * 부트스트랩 + 그레이박스 충돌 시연.
  *
- * 아직 움직이는 것은 없다 — 이동·충돌은 m0-3, m0-4 다.
- * 여기서 눈으로 확인할 것은 두 가지다.
- *   1. tps 가 60.0 에 붙어 있고 프레임 그래프가 평평한가
- *   2. X 를 눌러 히트스톱을 걸면 **틱만** 멈추고 UI 는 계속 도는가
+ * 플레이어 조작은 없다 — m0-4 다. 여기 도는 네 개의 프로브는 m0-3 의 "Done" 조건을
+ * 눈으로 확인하기 위한 것이고, 조작이 들어오면 지운다.
+ *
+ *   낙하    지면 위에 정확히 멈추는가
+ *   발판    아래에서 통과하고 위에서 밟히는가
+ *   탄환    한 틱에 6타일을 가도 벽을 뚫지 않는가
+ *   붕괴    밟은 뒤 1초에 무너지는가
  */
 
 TextureSource.defaultOptions.scaleMode = 'nearest'
@@ -40,48 +47,114 @@ host.appendChild(app.canvas)
 const overlay = new DebugOverlay(host)
 const keyboard = new KeyboardSource(window)
 
-// --- 그레이 박스 플레이스홀더 -------------------------------------------------
+// --- 그레이박스 레벨 ----------------------------------------------------------
+const LEVEL: Tilemap = parseTilemap([
+  '..............................',
+  '..............................',
+  '..............................',
+  '.....-----....................',
+  '..............................',
+  '..............................',
+  '..............................',
+  '.................xxxx.........',
+  '..............................',
+  '..............................',
+  '..........................####',
+  '..........................####',
+  '..........................####',
+  '............^^^^..............',
+  '..............................',
+  '..............................',
+  '##############################',
+])
+
 const scene = new Container()
 app.stage.addChild(scene)
+const greybox = new GreyboxRenderer(scene)
+greybox.drawGrid(LEVEL)
 
-const grid = new Graphics()
-for (let x = 0; x <= LOGICAL_WIDTH; x += TILE_SIZE) grid.moveTo(x, 0).lineTo(x, LOGICAL_HEIGHT)
-for (let y = 0; y <= LOGICAL_HEIGHT; y += TILE_SIZE) grid.moveTo(0, y).lineTo(LOGICAL_WIDTH, y)
-grid.stroke({ width: 1, color: 0x241c2e })
-scene.addChild(grid)
+let map: Tilemap = LEVEL
+let crumble: CrumbleState = INITIAL_CRUMBLE
 
-const ground = new Graphics()
-  .rect(0, LOGICAL_HEIGHT - TILE_SIZE * 2, LOGICAL_WIDTH, TILE_SIZE * 2)
-  .fill(0x2a2438)
-scene.addChild(ground)
+// 첫 틱 전에도 지형이 보이게 한 번 그려둔다.
+greybox.drawTerrain(map, crumble)
 
-const box = new Graphics()
-  .rect(0, 0, balance.player.hitbox.width, balance.player.hitbox.height)
-  .fill(0x8695ac)
-box.position.set(64, LOGICAL_HEIGHT - TILE_SIZE * 2 - balance.player.hitbox.height)
-scene.addChild(box)
+// --- 프로브 -------------------------------------------------------------------
+type ProbeKind = 'fall' | 'platform' | 'bullet' | 'crumble'
 
-/** 틱이 실제로 돌고 있음을 보여주는 표시기. 1초에 한 바퀴 돈다. */
-const tickHand = new Graphics()
-tickHand.position.set(LOGICAL_WIDTH - 24, 24)
-scene.addChild(tickHand)
+interface Probe {
+  readonly kind: ProbeKind
+  body: Body
+  /** 재시작까지 남은 틱. 0 이면 굴러가는 중이다. */
+  wait: number
+}
+
+const SPAWN: Readonly<Record<ProbeKind, () => Body>> = {
+  fall: () => createBody(40, 8, 12, 26),
+  platform: () => createBody(104, 40, 12, 26, { vy: balance.player.jumpVelocity }),
+  bullet: () => createBody(0, 176, 4, 4, { vx: 6000 }),
+  crumble: () => createBody(280, 8, 12, 26),
+}
+
+const probes: Probe[] = (['fall', 'platform', 'bullet', 'crumble'] as const).map((kind) => ({
+  kind,
+  body: SPAWN[kind](),
+  wait: 0,
+}))
+
+function stepProbes(): void {
+  const p = balance.player
+  const touched: { tx: number; ty: number }[] = []
+
+  for (const probe of probes) {
+    if (probe.wait > 0) {
+      probe.wait -= 1
+      if (probe.wait === 0) restart(probe)
+      continue
+    }
+
+    // 탄환만 중력을 받지 않는다 — 수평 터널링만 보기 위한 것이다.
+    if (probe.kind !== 'bullet') {
+      const gravity = probe.body.vy < 0 ? p.gravityRising : p.gravityFalling
+      const vy = Math.min(p.maxFallSpeed, probe.body.vy + gravity * TICK_SECONDS)
+      probe.body = { ...probe.body, vy }
+    }
+
+    const result = resolve(probe.body, map, TICK_SECONDS)
+    probe.body = result.body
+    touched.push(...result.crumbled)
+
+    if (isFinished(probe)) probe.wait = 90
+  }
+
+  // 타이머를 먼저 돌리고 이번 틱의 접촉을 등록한다 — 순서가 바뀌면 1틱 빨리 무너진다.
+  const ticked = tickCrumble(crumble, map)
+  map = ticked.map
+  crumble = touchCrumbling(ticked.state, map, touched)
+}
+
+function isFinished(probe: Probe): boolean {
+  if (probe.kind === 'bullet') return probe.body.hitWall
+  if (probe.body.y > LOGICAL_HEIGHT) return true
+  return probe.body.onGround
+}
+
+function restart(probe: Probe): void {
+  probe.body = SPAWN[probe.kind]()
+  if (probe.kind === 'crumble') {
+    // 무너진 발판을 되돌려 시연을 반복한다. 게임 규칙이 아니라 시연 장치다.
+    map = LEVEL
+    crumble = resetCrumble()
+  }
+}
 
 // --- 루프 ---------------------------------------------------------------------
 let loop: LoopState = INITIAL_LOOP
 let input: InputState = INITIAL_INPUT
+let pendingFrame = 0
 
 let lastFrameAt = performance.now()
 let logicMs = 0
-
-/**
- * 틱이 소비하기 전까지 프레임 입력을 모아둔다.
- *
- * 120Hz·144Hz 화면에서는 틱이 하나도 안 도는 프레임이 생긴다. 거기서 폴링한
- * 입력을 그냥 버리면 짧은 탭이 통째로 사라진다 — 틱이 돌 때 비운다.
- */
-let pendingFrame = 0
-
-// 최근 1초 계측
 let framesInWindow = 0
 let ticksInWindow = 0
 let windowStart = lastFrameAt
@@ -103,11 +176,9 @@ app.ticker.add(() => {
 
   const logicStart = performance.now()
   for (let i = 0; i < stepped.ticks; i += 1) {
-    // 캐치업 틱은 같은 입력을 유지한다.
     input = advanceInput(input, pendingFrame)
-
-    // 히트스톱 시연: 공격 키로 갑옷 파괴와 같은 180ms 를 건다 (GOAL 비협상 원칙 4).
     if (isDown(input.pressed, 'attack')) loop = requestHitstop(loop, 180)
+    stepProbes()
   }
   logicMs = performance.now() - logicStart
   if (stepped.ticks > 0) pendingFrame = 0
@@ -124,14 +195,8 @@ app.ticker.add(() => {
   }
 
   // 렌더는 히트스톱 중에도 계속 돈다.
-  const angle = ((loop.tick % TICK_RATE) / TICK_RATE) * Math.PI * 2
-  tickHand
-    .clear()
-    .moveTo(0, 0)
-    .lineTo(Math.sin(angle) * 8, -Math.cos(angle) * 8)
-    .stroke({ width: 1, color: loop.hitstopMs > 0 ? 0xe23e4e : 0xf0c04a })
-
-  box.tint = loop.hitstopMs > 0 ? 0xffffff : 0x8695ac
+  greybox.drawTerrain(map, crumble)
+  greybox.drawBodies(probes.filter((p) => p.wait === 0).map((p) => p.body))
 
   const metrics: DebugMetrics = {
     fps,
@@ -142,8 +207,8 @@ app.ticker.add(() => {
     droppedTicks,
     alpha: stepped.alpha,
     hitstopMs: loop.hitstopMs,
-    entities: 1,
-    state: loop.hitstopMs > 0 ? 'hitstop' : 'idle',
+    entities: probes.filter((p) => p.wait === 0).length,
+    state: loop.hitstopMs > 0 ? 'hitstop' : 'probes',
   }
   overlay.render(metrics)
 })
@@ -163,6 +228,20 @@ window.addEventListener('keydown', (e) => {
     overlay.toggle()
   }
 })
+
+// --- 개발 핸들 ---------------------------------------------------------------
+// 콘솔에서 상태를 들여다보고 화면을 뽑아낼 수 있게 한다. 프로덕션 번들에서는 사라진다.
+// 스테이지 워프·프리 카메라(docs/10-tech-spec.md 10.10)도 여기에 붙는다.
+if (import.meta.env.DEV) {
+  Object.assign(globalThis, {
+    grimhollow: {
+      app,
+      probes,
+      snapshot: () => ({ tick: loop.tick, hitstopMs: loop.hitstopMs, map, crumble }),
+      capture: async () => (await app.renderer.extract.base64(app.stage)) as string,
+    },
+  })
+}
 
 console.info(
   `[grimhollow] 밸런스 로드 완료 — 무기 ${balance.weapons.length}, 적 ${balance.enemies.length}, 보스 ${balance.bosses.length}`,
