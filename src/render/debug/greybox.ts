@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js'
+import type { JumpArc } from '../../entities/player/arc.ts'
 import { boxOf, type Body } from '../../physics/body.ts'
 import { warningProgress, type CrumbleState } from '../../physics/crumble.ts'
 import { TILE, tileAt, type Tilemap } from '../../physics/tilemap.ts'
@@ -19,15 +20,18 @@ const COLOR = {
   hazard: 0x7e1f2c,
   body: 0x8695ac,
   bodyGrounded: 0xf0c04a,
+  arc: 0x8a5f14,
+  arcApex: 0xf0c04a,
 } as const
 
 export class GreyboxRenderer {
   private readonly grid = new Graphics()
   private readonly terrain = new Graphics()
+  private readonly arc = new Graphics()
   private readonly bodies = new Graphics()
 
   constructor(stage: Container) {
-    stage.addChild(this.grid, this.terrain, this.bodies)
+    stage.addChild(this.grid, this.terrain, this.arc, this.bodies)
   }
 
   /** 격자는 지형과 달리 매 틱 다시 그릴 필요가 없다. */
@@ -63,6 +67,35 @@ export class GreyboxRenderer {
           drawCrumbling(g, x, y, size, warningProgress(crumble, map, tx, ty))
         }
       }
+    }
+  }
+
+  /**
+   * 예측 점프 궤도.
+   *
+   * 화면에 그려지는 이 궤도와 실제 판정은 **같은 함수**에서 나온다
+   * (`entities/player/arc.ts`). 갈라지면 눈으로 재는 것이 무의미해진다.
+   */
+  drawArc(arc: JumpArc | null, originX: number, originY: number, direction: -1 | 1): void {
+    const g = this.arc.clear()
+    if (!arc) return
+
+    let apexIndex = 0
+    for (let i = 1; i < arc.points.length; i += 1) {
+      if ((arc.points[i]?.y ?? 0) < (arc.points[apexIndex]?.y ?? 0)) apexIndex = i
+    }
+
+    for (const point of arc.points) {
+      if (point.frame % 2 !== 0) continue
+      const x = originX + point.x * direction
+      const y = originY + point.y
+      g.rect(Math.round(x), Math.round(y), 1, 1).fill(COLOR.arc)
+    }
+
+    const apex = arc.points[apexIndex]
+    if (apex) {
+      g.rect(Math.round(originX + apex.x * direction) - 1, Math.round(originY + apex.y) - 1, 3, 3)
+        .fill(COLOR.arcApex)
     }
   }
 

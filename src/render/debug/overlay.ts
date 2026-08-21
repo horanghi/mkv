@@ -21,6 +21,11 @@ export interface DebugMetrics {
   readonly hitstopMs: number
   readonly entities: number
   readonly state: string
+  /** px/s */
+  readonly velocity: readonly [number, number]
+  readonly coyoteFrames: number
+  readonly jumpBufferFrames: number
+  readonly grounded: boolean
 }
 
 export const EMPTY_METRICS: DebugMetrics = {
@@ -34,6 +39,10 @@ export const EMPTY_METRICS: DebugMetrics = {
   hitstopMs: 0,
   entities: 0,
   state: '-',
+  velocity: [0, 0],
+  coyoteFrames: 0,
+  jumpBufferFrames: 0,
+  grounded: false,
 }
 
 const GRAPH_WIDTH = 120
@@ -99,9 +108,9 @@ export class DebugOverlay {
       `tps    ${m.ticksPerSecond.toFixed(1).padStart(5)}${tickDrift ? ' !' : '  '} logic ${m.logicMs.toFixed(2)}ms${overBudget ? ' !' : ''}`,
       `tick   ${m.tick}  alpha ${m.alpha.toFixed(2)}  drop ${m.droppedTicks}`,
       `stop   ${m.hitstopMs.toFixed(0)}ms  entities ${m.entities}`,
-      `state  ${m.state}`,
-      // TODO(m0-3): 타일 충돌 질의 박스
-      // TODO(m0-4): 히트박스 · 속도 벡터 · 코요테/버퍼 잔여 프레임
+      `state  ${m.state}${m.grounded ? '' : ' (air)'}`,
+      `vel    ${m.velocity[0].toFixed(1).padStart(6)} ${m.velocity[1].toFixed(1).padStart(7)}`,
+      `coyote ${m.coyoteFrames}  buffer ${m.jumpBufferFrames}`,
     ].join('\n')
 
     this.drawGraph()
