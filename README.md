@@ -27,9 +27,8 @@ Node 22.17.0 (`.nvmrc`). PixiJS v8 · TypeScript 7 · Vite · Vitest.
 | `npm run preview` | 프로덕션 빌드를 로컬에서 확인 |
 | `npm run deploy` | Vercel 프로덕션 배포 |
 
-> GitHub 자동 배포는 연결되어 있지 않다. 푸시해도 배포되지 않으므로
-> `npm run deploy` 로 수동 배포한다. 자동화하려면 Vercel 프로젝트 `mkv` 의
-> Git 설정에서 `horanghi/mkv` 를 연결한다.
+> `main` 에 푸시하면 Vercel 이 자동으로 프로덕션 배포한다 (GitHub App 연동).
+> `npm run deploy` 는 푸시 없이 로컬 상태를 즉시 올릴 때만 쓴다.
 
 ### 조작 (M0 캘리브레이션 빌드)
 
