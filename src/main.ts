@@ -24,6 +24,7 @@ import {
 import { boxOf } from './physics/body.ts'
 import { parseTilemap, type Tilemap } from './physics/tilemap.ts'
 import { GreyboxRenderer } from './render/debug/greybox.ts'
+import { ControlHint } from './render/debug/hint.ts'
 import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
 
 /**
@@ -56,7 +57,22 @@ await app.init({
 host.style.position = 'relative'
 host.appendChild(app.canvas)
 
+/**
+ * 계측 표시는 **개발 중에만** 기본으로 켠다.
+ *
+ * 테스터 빌드에서 궤도와 수치를 보여주면 그건 이미 설명이다.
+ * 게이트에서 물을 것은 "점프가 재미있나요?" 하나뿐이다. → prompts/m0-gate.md
+ */
+const DEV = import.meta.env.DEV
+
 const overlay = new DebugOverlay(host)
+overlay.setVisible(DEV)
+
+const hint = new ControlHint(host, [
+  '←  →   이동        Z   점프',
+  'X  던지기         ↓   웅크리기        R  처음부터',
+])
+
 const keyboard = new KeyboardSource(window)
 
 /**
@@ -101,7 +117,7 @@ let map: Tilemap = LEVEL
 let crumble: CrumbleState = INITIAL_CRUMBLE
 let player: Player = createPlayer(SPAWN.x, SPAWN.y, balance.player)
 let shots: ProjectileWorld = EMPTY_WORLD
-let showArc = true
+let showArc = DEV
 
 /** M0 의 유일한 무기. 나머지 6종은 M2 다. */
 const LANCE = requireWeapon(balance, 'lance')
@@ -170,6 +186,7 @@ app.ticker.add(() => {
   const logicStart = performance.now()
   for (let i = 0; i < stepped.ticks; i += 1) {
     input = advanceInput(input, pendingFrame)
+    if (input.held !== 0) hint.dismiss()
     if (isDown(input.pressed, 'restart')) reset()
     input = stepWorld(input)
     // 발사 순간 아주 짧은 히트스톱. 던지는 손맛을 만드는 최소 장치다.
@@ -240,7 +257,7 @@ window.addEventListener('keydown', (e) => {
 })
 
 // --- 개발 핸들 ---------------------------------------------------------------
-if (import.meta.env.DEV) {
+if (DEV) {
   Object.assign(globalThis, {
     grimhollow: {
       app,
@@ -260,6 +277,8 @@ if (import.meta.env.DEV) {
   })
 }
 
-console.info(
-  `[grimhollow] 점프 실측 — 높이 ${ARC.maxHeight.toFixed(1)}px · 거리 ${ARC.distance.toFixed(1)}px · 체공 ${ARC.airFrames}프레임`,
-)
+if (DEV) {
+  console.info(
+    `[grimhollow] 점프 실측 — 높이 ${ARC.maxHeight.toFixed(1)}px · 거리 ${ARC.distance.toFixed(1)}px · 체공 ${ARC.airFrames}프레임`,
+  )
+}

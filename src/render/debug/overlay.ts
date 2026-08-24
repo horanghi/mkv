@@ -94,8 +94,12 @@ export class DebugOverlay {
   }
 
   toggle(): void {
-    this.visible = !this.visible
-    this.root.style.display = this.visible ? 'flex' : 'none'
+    this.setVisible(!this.visible)
+  }
+
+  setVisible(visible: boolean): void {
+    this.visible = visible
+    this.root.style.display = visible ? 'flex' : 'none'
   }
 
   render(m: DebugMetrics): void {
