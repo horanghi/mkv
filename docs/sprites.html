@@ -412,17 +412,18 @@
   function pose(o) {
     o = o || {};
     var dy = o.dy || 0, lf = o.lf || 0, lb = o.lb || 0,
-        af = o.af || 0, ab = o.ab || 0, afy = o.afy || 0, legY = o.legY || 0;
+        af = o.af || 0, ab = o.ab || 0, afy = o.afy || 0, legY = o.legY || 0,
+        lean = o.lean || 0, aby = o.aby || 0, lfy = o.lfy || 0, lby = o.lby || 0;
     var g = blank();
     var T = o.parts || P;
-    stamp(g, T.ARM_B, 8 + ab, 15 + dy);
-    stamp(g, T.LEG_B, 10 + lb, 22 + dy + legY);
-    stamp(g, T.BOOT_B, 9 + lb, 29 + dy + legY);
-    stamp(g, T.PLUME, 4, 2 + dy);
-    stamp(g, T.TORSO, 10, 12 + dy);
-    stamp(g, T.HEAD, 9, 4 + dy);
-    stamp(g, T.LEG_F, 15 + lf, 22 + dy + legY);
-    stamp(g, T.BOOT_F, 15 + lf, 29 + dy + legY);
+    stamp(g, T.ARM_B, 8 + ab, 15 + dy + aby);
+    stamp(g, T.LEG_B, 10 + lb, 22 + dy + legY + lby);
+    stamp(g, T.BOOT_B, 9 + lb, 29 + dy + legY + lby);
+    stamp(g, T.PLUME, 4 + lean, 2 + dy);
+    stamp(g, T.TORSO, 10 + lean, 12 + dy);
+    stamp(g, T.HEAD, 9 + lean, 4 + dy);
+    stamp(g, T.LEG_F, 15 + lf, 22 + dy + legY + lfy);
+    stamp(g, T.BOOT_F, 15 + lf, 29 + dy + legY + lfy);
     stamp(g, T.ARM_F, 17 + af, 15 + dy + afy);
     if (o.wpn) stamp(g, WPN[o.wpnKey || 'lance'].rows, o.wpn[0], o.wpn[1] + dy);
     return g.map(function (r) { return r.join(''); });
@@ -446,7 +447,23 @@
       { af: 2, afy:-1, wpn:[25, 17] },  // 릴리스 — 손을 떠남
       { af: 1,         wpn:[31, 17] }   // 복귀 — 화면 밖으로
     ]},
-    crouch: { label:'웅크리기', fps:6, keys:[ { dy:4, legY:-4, af:-1 }, { dy:5, legY:-5, af:-1 } ] }
+    crouch: { label:'웅크리기', fps:6, keys:[ { dy:4, legY:-4, af:-1 }, { dy:5, legY:-5, af:-1 } ] },
+    land:   { label:'착지', fps:14, keys:[
+      { dy: 4, legY:-4, af: 1, ab:-1, afy: 2 },  // 최대 압축 — 무릎이 접히고 팔이 처진다
+      { dy: 2, legY:-2, af: 1, ab:-1, afy: 1 },  // 반동
+      { dy: 0 }                                   // 복원
+    ]},
+    hurt:   { label:'피격', fps:12, keys:[
+      { lean:-2, dy:-1, af:-2, afy:-4, ab: 1, aby:-2, lf:-1, lb: 1 },  // 충격
+      { lean:-3, af:-3, afy:-3, ab: 1, aby:-1, lf:-2, lb: 2 },         // 최대 후퇴
+      { lean:-1, af:-1, afy:-1, ab: 1, lf:-1, lb: 1 }                  // 복귀
+    ]},
+    ladder: { label:'사다리', fps:8, keys:[
+      { af: 1, afy:-6, ab: 0, aby: 1, lf:-1, lfy:-3, lb: 1, lby: 1 },
+      { af: 1, afy:-3, ab: 0, aby:-1, lfy:-1, lby:-1 },
+      { af: 0, afy: 1, ab: 1, aby:-6, lf: 1, lfy: 1, lb:-1, lby:-3 },
+      { af: 0, afy:-1, ab: 1, aby:-3, lfy:-1, lby:-1 }
+    ]}
   };
 
   var wpnKey = 'lance';
@@ -770,5 +787,31 @@
   drawGrimm();
   syncPlay();
   requestAnimationFrame(loop);
+
+  // 파츠 접합 자동 검사 — 그림 날개 · 캐른 팔 · 착지 뒷팔로 세 번 반복한 실패다.
+  // 몸통 x10~19 와 최소 1px 겹치지 않으면 파츠가 따로 떠 보인다. → 12-sprites.md 오프셋 유효 범위
+  function auditClips() {
+    var TORSO = [10, 19];
+    var SPAN = { af: [17, 20], ab: [8, 11], lf: [15, 18], lb: [10, 13] };
+    var problems = [];
+    Object.keys(CLIPS).forEach(function (name) {
+      CLIPS[name].keys.forEach(function (o, i) {
+        Object.keys(SPAN).forEach(function (axis) {
+          var d = o[axis] || 0, s0 = SPAN[axis][0] + d, s1 = SPAN[axis][1] + d;
+          if (s0 > TORSO[1] || s1 < TORSO[0]) {
+            problems.push(name + ' f' + i + ' ' + axis + '=' + d + ' → 몸통과 겹치지 않는다');
+          }
+        });
+      });
+    });
+    if (problems.length) {
+      console.warn('[스프라이트] 파츠 접합 경고\n  ' + problems.join('\n  '));
+    }
+    return problems;
+  }
+  auditClips();
+
+  // 검수용 핸들 — 콘솔에서 클립 전 프레임을 펼쳐 볼 때 쓴다.
+  window.sheet = { CLIPS: CLIPS, pose: pose, PARTS: P, PALS: PALS, WPN: WPN, audit: auditClips };
 })();
 </script>

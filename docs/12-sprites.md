@@ -251,23 +251,54 @@ ARM_B → LEG_B → BOOT_B → PLUME → TORSO → HEAD → LEG_F → BOOT_F →
 ### 포즈 생성
 
 ```ts
-type Pose = { dy?: number; lf?: number; lb?: number
-              af?: number; ab?: number; afy?: number; legY?: number }
+type Pose = {
+  dy?: number                    // 전신 상하
+  lean?: number                  // 상체(투구·몸통·머리)만 좌우 — 젖힘
+  af?: number; afy?: number      // 앞팔 좌우 · 상하
+  ab?: number; aby?: number      // 뒷팔 좌우 · 상하
+  lf?: number; lfy?: number      // 앞다리 좌우 · 상하
+  lb?: number; lby?: number      // 뒷다리 좌우 · 상하
+  legY?: number                  // 두 다리 공통 상하 (웅크리기·착지)
+}
 
 export function pose(o: Pose = {}): string[] {
-  const { dy = 0, lf = 0, lb = 0, af = 0, ab = 0, afy = 0, legY = 0 } = o
+  const { dy = 0, lean = 0, lf = 0, lb = 0, af = 0, ab = 0,
+          afy = 0, aby = 0, lfy = 0, lby = 0, legY = 0 } = o
   const g = blank()
-  stamp(g, PARTS.ARM_B,  8 + ab, 15 + dy)
-  stamp(g, PARTS.LEG_B,  10 + lb, 22 + dy + legY)
-  stamp(g, PARTS.BOOT_B, 9 + lb,  29 + dy + legY)
-  stamp(g, PARTS.PLUME,  4,       2 + dy)
-  stamp(g, PARTS.TORSO,  10,      12 + dy)
-  stamp(g, PARTS.HEAD,   9,       4 + dy)
-  stamp(g, PARTS.LEG_F,  15 + lf, 22 + dy + legY)
-  stamp(g, PARTS.BOOT_F, 15 + lf, 29 + dy + legY)
-  stamp(g, PARTS.ARM_F,  17 + af, 15 + dy + afy)
+  stamp(g, PARTS.ARM_B,  8 + ab,   15 + dy + aby)
+  stamp(g, PARTS.LEG_B,  10 + lb,  22 + dy + legY + lby)
+  stamp(g, PARTS.BOOT_B, 9 + lb,   29 + dy + legY + lby)
+  stamp(g, PARTS.PLUME,  4 + lean, 2 + dy)
+  stamp(g, PARTS.TORSO,  10 + lean, 12 + dy)
+  stamp(g, PARTS.HEAD,   9 + lean,  4 + dy)
+  stamp(g, PARTS.LEG_F,  15 + lf,  22 + dy + legY + lfy)
+  stamp(g, PARTS.BOOT_F, 15 + lf,  29 + dy + legY + lfy)
+  stamp(g, PARTS.ARM_F,  17 + af,  15 + dy + afy)
   return g.map(r => r.join(''))
 }
+```
+
+### 오프셋 유효 범위 — 넘기면 파츠가 떨어진다
+
+같은 실패를 세 번 했다. 그림의 날개, 캐른의 팔, 착지 클립의 뒷팔이 전부
+**파츠가 몸통과 겹치지 않아 따로 떠 보이는** 문제였다. 원인이 매번 같으니 수치로 못박는다.
+
+몸통은 `x10~19`, `y12~21` 을 차지한다. 팔·다리는 이 범위와 **최소 1px 겹쳐야** 붙어 보인다.
+
+| 축 | 안전 범위 | 한계 | 넘으면 |
+|---|---|---|---|
+| `af` 앞팔 좌우 | −4 ~ +2 | +2 | 어깨가 몸통 오른쪽 밖으로 나가 분리 |
+| `ab` 뒷팔 좌우 | **−1** ~ +3 | −1 | −2 부터 뒷팔이 몸통 왼쪽에 뜬다 |
+| `afy` `aby` 팔 상하 | −6 ~ +3 | −6 | 더 올리면 어깨가 몸통 위로 빠진다 |
+| `lf` `lb` 다리 좌우 | −2 ~ +2 | ±2 | 걷기 보폭의 한계이기도 하다 |
+| `lfy` `lby` 다리 상하 | −3 ~ +1 | +1 | 양수면 골반에 틈이 벌어진다 |
+| `lean` 상체 좌우 | −3 ~ +3 | ±3 | 상체가 골반에서 떨어진다 |
+
+> **`ab` 의 하한이 −1 인 것이 함정이다.** 앞팔은 −4 까지 가는데 뒷팔은 −1 이 한계다.
+> 뒷팔 기준 위치가 `x8` 이라 몸통 왼쪽 끝(`x10`)과 3px 밖에 안 겹치기 때문이다.
+> `sprites.html` 의 검수 화면이 이 조건을 자동으로 검사한다.
+
+```ts
 ```
 
 ### 클립 5종 · 20프레임
@@ -294,6 +325,23 @@ export const CLIPS = {
     { af: 1 },          // 복귀
   ]},
   crouch: { fps: 6,  keys: [{ dy: 4, legY:-4, af:-1 }, { dy: 5, legY:-5, af:-1 }] },
+
+  land:   { fps: 14, keys: [
+    { dy: 4, legY:-4, af: 1, ab:-1, afy: 2 },  // 최대 압축 — 무릎이 접히고 팔이 처진다
+    { dy: 2, legY:-2, af: 1, ab:-1, afy: 1 },  // 반동
+    { dy: 0 },                                  // 복원
+  ]},
+  hurt:   { fps: 12, keys: [
+    { lean:-2, dy:-1, af:-2, afy:-4, ab: 1, aby:-2, lf:-1, lb: 1 },  // 충격
+    { lean:-3, af:-3, afy:-3, ab: 1, aby:-1, lf:-2, lb: 2 },         // 최대 후퇴
+    { lean:-1, af:-1, afy:-1, ab: 1, lf:-1, lb: 1 },                 // 복귀
+  ]},
+  ladder: { fps: 8,  keys: [
+    { af: 1, afy:-6, aby: 1, lf:-1, lfy:-3, lb: 1, lby: 1 },   // 앞손 위 · 앞발 올림
+    { af: 1, afy:-3, aby:-1, lfy:-1, lby:-1 },
+    { af: 0, afy: 1, ab: 1, aby:-6, lf: 1, lfy: 1, lb:-1, lby:-3 },  // 뒷손 위 · 뒷발 올림
+    { af: 0, afy:-1, ab: 1, aby:-3, lfy:-1, lby:-1 },
+  ]},
 }
 ```
 
@@ -304,6 +352,12 @@ export const CLIPS = {
 | `jump` | 4 | 8 | 상승·정점·하강을 물리 상태에 맵핑 |
 | `attack` | 4 | 14 | 2프레임에서 투사체 발사 ([02](02-core-mechanics.md#24-공격) 발사 딜레이 3f와 맞춤) |
 | `crouch` | 2 | 6 | 히트박스 12×16으로 축소 |
+| `land` | 3 | 14 | 압축 → 반동 → 복원. **조작을 막지 않는다** — 착지 경직은 넣지 않는다 |
+| `hurt` | 3 | 12 | 250ms. 이후 무적 72f 동안 4f 주기 깜빡임이 이어진다 ([02](02-core-mechanics.md#25-갑옷-시스템--게임의-심장)) |
+| `ladder` | 4 | 8 | 손발 교차. 사다리 위 공격은 `attack` 을 그대로 얹는다 ([02](02-core-mechanics.md#23-점프)) |
+
+**착지 클립은 조작을 막지 않는다.** 3프레임(214ms)은 연출일 뿐이고 그동안에도
+이동·점프 입력이 전부 받아들여진다. 착지 경직은 "재시작 마찰 제거"와 정면으로 부딪힌다.
 
 ### 무기 7종 — 던지기 액션
 
@@ -659,7 +713,7 @@ const bone  = sample(CAIRN, '56')     // 가볍게 — 중력 900, 회전 빠름
 | 대기 · 걷기 · 점프 · 무기 던지기 · 웅크리기 20프레임 | **완료** |
 | 무기 7종 스프라이트 + 던지기 릴리스 | **완료** |
 | 그림 — 비행 4프레임 · 착지 | **완료** |
-| 피격 · 착지 · 사다리 클립 | 미착수 |
+| 피격 · 착지 · 사다리 클립 | **완료** — 12.6 |
 | 좀비 · 까마귀 (S1 잡몹) | **완료** |
 | 보스 캐른 (대형 스프라이트) | **그레이박스 완료** — 12.10. 아트 패스 필요 |
 
