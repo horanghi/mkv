@@ -4,6 +4,10 @@
 
 **현재 M0 (프로토타입).** 검증할 질문은 하나다 — *점프가 재미있는가?*
 
+## 플레이
+
+**https://mkv-five.vercel.app** — M0 캘리브레이션 빌드 (로그인 불필요)
+
 ## 실행
 
 ```bash
@@ -20,6 +24,12 @@ Node 22.17.0 (`.nvmrc`). PixiJS v8 · TypeScript 7 · Vite · Vitest.
 | `npm test` | 유닛 테스트 + 커버리지 |
 | `npm run test:watch` | 감시 모드 |
 | `npm run typecheck` | 타입 검사만 |
+| `npm run preview` | 프로덕션 빌드를 로컬에서 확인 |
+| `npm run deploy` | Vercel 프로덕션 배포 |
+
+> GitHub 자동 배포는 연결되어 있지 않다. 푸시해도 배포되지 않으므로
+> `npm run deploy` 로 수동 배포한다. 자동화하려면 Vercel 프로젝트 `mkv` 의
+> Git 설정에서 `horanghi/mkv` 를 연결한다.
 
 ### 조작 (M0 캘리브레이션 빌드)
 

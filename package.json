@@ -3,14 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "마령촌 (GRIMHOLLOW) — browser hardcore 2D action platformer",
+  "description": "\ub9c8\ub839\ucd0c (GRIMHOLLOW) \u2014 browser hardcore 2D action platformer",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "vercel deploy --prod"
   },
   "engines": {
     "node": ">=20.19"
