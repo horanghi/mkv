@@ -1,4 +1,6 @@
-import { Application, Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js'
+import {
+  Application, BlurFilter, ColorMatrixFilter, Container, Graphics, Sprite, Texture, TextureSource,
+} from 'pixi.js'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_SECONDS } from './core/config.ts'
 import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/input.ts'
 import { KeyboardSource } from './core/keyboard.ts'
@@ -16,6 +18,13 @@ import { RELIC_LIGHT, limitLights, type Light } from './fx/light.ts'
 import { ARMOR_BREAK_TIMING, DEATH_TIMING } from './fx/sequence.ts'
 import { QUALITY_TIERS, createQuality, featuresFor, observeFps, setManual, type QualityState } from './fx/quality.ts'
 import { createWorld, stepWorld, type DamageCause, type World } from './game/world.ts'
+import { sectionAt } from './game/stage.ts'
+import {
+  RUNNING, countdownNumber, isMenuOpen, isPlayable, pause as pauseGame,
+  step as stepPause, toggle as togglePause, type PauseState,
+} from './game/pause.ts'
+import { buildResults, rollingAt, rollingDurationMs, type Results } from './game/results.ts'
+import { createRun, stepRun, type RunStats } from './game/runStats.ts'
 import { partsFor, paletteFor } from './sprite/armor.ts'
 import { currentPose } from './sprite/clip.ts'
 import { pose } from './sprite/pose.ts'
@@ -40,6 +49,8 @@ import {
 } from './core/audio.ts'
 import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
 import { Playtest } from './ui/report/playtest.ts'
+import { PauseMenu } from './ui/menus/pauseMenu.ts'
+import { ResultsScreen } from './ui/menus/resultsScreen.ts'
 
 /**
  * 부트스트랩과 렌더.
@@ -57,6 +68,14 @@ const host = document.querySelector<HTMLElement>('#app')
 if (!host) throw new Error('#app 이 없다')
 
 const DEV = import.meta.env.DEV
+
+/**
+ * UI 타이밍 한 걸음의 상한 (ms).
+ *
+ * 브라우저가 멈췄다 돌아오면 첫 프레임 간격이 수 초가 된다. 그걸 그대로
+ * 카운트다운·롤링에 먹이면 연출이 통째로 건너뛰어진다.
+ */
+const MAX_UI_STEP_MS = 100
 const balance = loadBalance()
 
 const app = new Application()
@@ -92,6 +111,20 @@ const keyboard = new KeyboardSource(window)
  */
 const playtest = new Playtest(host, keyboard)
 
+const pauseMenu = new PauseMenu(host, {
+  onResume: () => { pauseState = togglePause(pauseState) },
+  onRestart: () => { reset() },
+})
+
+const resultsScreen = new ResultsScreen(host, {
+  onSkip: () => { if (results) resultsElapsedMs = rollingDurationMs(results) },
+  onContinue: () => {
+    resultsScreen.close()
+    // 보상이 먼저고 설문이 나중이다.
+    playtest.promptSurvey()
+  },
+})
+
 // --- 층 구성 -------------------------------------------------------------------
 // docs/06 6.2 의 8층. 배경(1~4)과 전경(7)은 카메라를 **부분적으로만** 따르므로
 // stageRoot 안에 둘 수 없다. 셰이크는 같이 받아야 하니 shakeRoot 의 형제로 둔다.
@@ -103,6 +136,16 @@ const fxLayer = new Container()
 const lightLayer = new LightLayer()
 const bloomLayer = new BloomLayer()
 const screenFilter = new ScreenFilter()
+/**
+ * 일시정지 배경 처리 — 블러 + 채도 40%. → docs/09 9.3
+ *
+ * 게임 화면을 그대로 두면 메뉴가 화면 위에 떠 있는 게 아니라 섞여 보인다.
+ */
+// 논리 해상도가 480×270 이라 강도를 조금만 올려도 화면이 통째로 뭉개진다.
+// "게임 화면 유지" 가 요구사항이므로 알아볼 수 있는 선까지만 흐린다.
+const pauseBlur = new BlurFilter({ strength: 2, quality: 2 })
+const pauseDesaturate = new ColorMatrixFilter()
+pauseDesaturate.saturate(-0.6, false)  // 채도 40% — docs/09 9.3
 const worldRoot = new Container()
 
 shakeRoot.addChild(backdropRoot, stageRoot, foregroundRoot)
@@ -168,9 +211,16 @@ let deathFlesh: readonly string[] | null = null
 let showDebugBoxes = DEV
 let hud: HudState = INITIAL_HUD
 let music: MusicState = INITIAL_MUSIC
-let score = 0
 let elapsedTicks = 0
 let bossSeen = false
+let run: RunStats = createRun(STAGE_1.sections.length)
+let pauseState: PauseState = RUNNING
+/** 일시정지 키의 직전 상태. 누른 순간만 잡기 위한 것이다. */
+let prevPauseDown = false
+/** 지금 배경에 블러가 걸려 있는가. 필터 교체를 최소화한다. */
+let blurred = false
+let results: Results | null = null
+let resultsElapsedMs = 0
 
 greybox.drawGrid(world.map)
 greybox.setGridVisible(showDebugBoxes)
@@ -179,7 +229,11 @@ function reset(): void {
   world = createWorld(STAGE_1, balance)
   hud = INITIAL_HUD
   music = INITIAL_MUSIC
-  score = 0
+  run = createRun(STAGE_1.sections.length)
+  pauseState = RUNNING
+  results = null
+  resultsElapsedMs = 0
+  resultsScreen.close()
   elapsedTicks = 0
   bossSeen = false
   director.reset()
@@ -228,13 +282,38 @@ app.ticker.add(() => {
   const polled = keyboard.poll()
   pendingFrame |= polled
 
+  // --- 일시정지 -------------------------------------------------------------
+  // 틱 밖에서 본다. 멈춰 있으면 틱이 안 도는데 그 안에서 입력을 읽으면
+  // 다시 켤 방법이 없어진다. 누른 순간만 잡아야 하므로 직전 상태와 비교한다.
+  const pauseDown = isDown(polled, 'pause')
+  const menuBusy = resultsScreen.isOpen || playtest.surveyOpen
+  if (pauseDown && !prevPauseDown && !menuBusy) pauseState = togglePause(pauseState)
+  prevPauseDown = pauseDown
+  // 프레임 간격을 그대로 넣으면 안 된다. 탭에서 돌아온 첫 프레임은 수 초짜리라
+  // 3-2-1 이 한 프레임에 다 소진된다 — 손을 올리기 전에 게임이 시작된다.
+  pauseState = stepPause(pauseState, Math.min(frameMs, MAX_UI_STEP_MS))
+
+  const playable = isPlayable(pauseState) && !menuBusy
+  const menuOpen = isMenuOpen(pauseState)
+  pauseMenu.render(menuOpen, countdownNumber(pauseState))
+  // 필터 배열은 바뀔 때만 갈아 끼운다. 매 프레임 새로 넣으면 파이프라인을 다시 만든다.
+  if (menuOpen !== blurred) {
+    blurred = menuOpen
+    worldRoot.filters = menuOpen
+      ? [screenFilter, pauseBlur, pauseDesaturate]
+      : [screenFilter]
+  }
+
   // 이 프레임 안에서 여러 틱이 돌 수 있다. 계측은 프레임 단위로 한 번 넘긴다.
   let diedThisFrame = false
   let hurtThisFrame = false
   let brokeThisFrame = false
   let causeThisFrame: DamageCause | null = null
 
-  const stepped = advance(loop, frameMs)
+  // 멈춰 있으면 시간을 누산하지 않는다. 누산하면 풀리는 순간 밀린 틱이 쏟아진다.
+  const stepped = playable
+    ? advance(loop, frameMs)
+    : { state: loop, ticks: 0, droppedTicks: 0, alpha: 0, hitstopped: false }
   loop = stepped.state
   droppedTicks = stepped.droppedTicks
 
@@ -250,7 +329,11 @@ app.ticker.add(() => {
     input = result.input
 
     elapsedTicks += 1
-    score += result.events.enemiesKilled * 200 + result.events.bossHit * 3
+    run = stepRun(run, {
+      events: result.events,
+      sectionIndex: sectionAt(STAGE_1, world.player.body.x),
+      armor: spriteStateOf(world.vitals),
+    })
 
     if (result.events.hurt) hurtThisFrame = true
     if (result.events.died) diedThisFrame = true
@@ -293,8 +376,8 @@ app.ticker.add(() => {
     windowStart = now
   }
 
-  // --- 연출 (히트스톱 중에도 흐른다) ---------------------------------------
-  director.advance(frameMs)
+  // --- 연출 (히트스톱 중에도 흐른다. 일시정지에는 멈춘다) -------------------
+  director.advance(playable ? frameMs : 0)
   const shake = director.cameraOffset
   shakeRoot.position.set(shake.x, shake.y)
   stageRoot.position.set(-Math.round(world.camera.x), -Math.round(world.camera.y))
@@ -356,7 +439,7 @@ app.ticker.add(() => {
     vitals: world.vitals,
     weaponId: world.weaponId,
     secondsLeft,
-    score,
+    score: run.score,
     bossHp: world.cairn.awake && world.cairn.state !== 'dead' ? world.cairn.hp / 300 : null,
     busy,
   }, frameMs)
@@ -371,6 +454,23 @@ app.ticker.add(() => {
   bgm.update(music)
 
   overlay.render(metricsOf(frameMs))
+
+  // --- 결과 화면 -----------------------------------------------------------
+  if (world.cleared && results === null) {
+    results = buildResults(run, {
+      secondsLeft: balance.player.stageTimeLimitSeconds - elapsedTicks / 60,
+      enemyTotal: STAGE_1.enemies.length,
+    })
+    resultsElapsedMs = 0
+    resultsScreen.open(STAGE_1.name)
+  }
+  if (results !== null && resultsScreen.isOpen) {
+    resultsElapsedMs += Math.min(frameMs, MAX_UI_STEP_MS)
+    resultsScreen.render(results, rollingAt(results, resultsElapsedMs))
+  }
+
+  // 멈춰 있는 동안은 플레이 시간이 아니다. 프레임도 지표도 세지 않는다.
+  if (!playable) return
 
   playtest.frame({
     frameMs,
@@ -504,6 +604,12 @@ function applyViewport(): void {
 }
 applyViewport()
 window.addEventListener('resize', applyViewport)
+
+// 탭을 벗어나면 저절로 멈춘다. → docs/09 9.7
+// 없으면 자리를 뜬 사이에 죽고, 그 죽음이 계측에서 "이탈" 로 잡힌다.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') pauseState = pauseGame(pauseState)
+})
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'F1') { e.preventDefault(); overlay.toggle() }

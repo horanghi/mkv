@@ -88,10 +88,18 @@ export class Playtest {
       this.revealed = true
       this.card.revealEntry()
     }
-    if (observation.cleared) this.card.showOnce()
 
     this.panel.render(this.state.session, this.loadBytes, this.entries)
     if (this.elapsedMs - this.lastSavedAt >= SAVE_INTERVAL_MS) this.persist()
+  }
+
+  /**
+   * 설문 카드를 띄운다. 클리어 결과 화면을 닫은 뒤에 부른다.
+   *
+   * 클리어 즉시 띄우면 결과 화면을 덮는다. 보상이 먼저고 설문이 나중이다.
+   */
+  promptSurvey(): void {
+    this.card.showOnce()
   }
 
   toggleGatePanel(): void {

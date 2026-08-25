@@ -127,6 +127,8 @@ export const STAGE_1: Stage = {
     { tx: SECTION_START.boss - 6, ty: 14, label: '보스 직전' },
   ],
 
+  sections: [SECTION_START.a, SECTION_START.b, SECTION_START.boss],
+
   enemies: [
     // 1-A — 좀비 3마리뿐이다. docs/04 의 구성 그대로다.
     //

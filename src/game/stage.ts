@@ -31,8 +31,27 @@ export interface Stage {
   readonly spawn: { readonly tx: number; readonly ty: number }
   readonly checkpoints: readonly Checkpoint[]
   readonly enemies: readonly EnemySpawn[]
+  /**
+   * 구간 경계의 타일 x. 첫 값은 0 이다.
+   *
+   * 노히트 보너스가 **구간당** 붙으므로(docs/02 2.7) 경계가 데이터에 있어야 한다.
+   * 레벨을 고치면 여기도 같이 고친다.
+   */
+  readonly sections: readonly number[]
   /** 보스룸 진입 x (픽셀). 이 지점을 넘으면 보스가 깨어난다. */
   readonly bossGateX: number
+}
+
+/**
+ * 이 x 픽셀이 몇 번째 구간인가. 경계 밖은 0 또는 마지막 구간이다.
+ */
+export function sectionAt(stage: Stage, x: number, tileSize = 16): number {
+  const tx = x / tileSize
+  let index = 0
+  for (let i = 0; i < stage.sections.length; i += 1) {
+    if (tx >= (stage.sections[i] ?? 0)) index = i
+  }
+  return index
 }
 
 // ── Tiled 로더 ──────────────────────────────────────────────────────────────
