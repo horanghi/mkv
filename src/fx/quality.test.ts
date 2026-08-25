@@ -3,6 +3,8 @@ import {
   DOWNGRADE_AFTER_MS,
   DOWNGRADE_FPS,
   QUALITY_TIERS,
+  SLOW_DOWNGRADE_AFTER_MS,
+  SLOW_DOWNGRADE_FPS,
   UPGRADE_AFTER_MS,
   UPGRADE_FPS,
   clearManual,
@@ -93,8 +95,9 @@ describe('자동 강등', () => {
     expect(state.tier).toBe('low')
   })
 
-  it('경계값에서 강등하지 않는다', () => {
-    expect(hold(createQuality('high'), DOWNGRADE_FPS, 10000).tier).toBe('high')
+  it('경계값에서는 빠른 규칙이 걸리지 않는다 — 미만이지 이하가 아니다', () => {
+    const edge = hold(createQuality('high'), DOWNGRADE_FPS, DOWNGRADE_AFTER_MS * 2)
+    expect(edge.tier).toBe('high')
   })
 })
 
@@ -135,5 +138,37 @@ describe('수동 설정이 자동 조정을 이긴다', () => {
     const auto = clearManual(manual)
     expect(auto.manual).toBe(false)
     expect(hold(auto, 10, 5000).tier).toBe('medium')
+  })
+})
+
+describe('느린 2차 강등 — 게이트가 재는 선', () => {
+  it('45fps 로 계속 돌면 결국 내려간다 — 1차 규칙만으로는 안 잡힌다', () => {
+    const start = createQuality('high')
+    const soon = hold(start, 45, DOWNGRADE_AFTER_MS + 500)
+    expect(soon.tier).toBe('high')
+
+    const later = hold(start, 45, SLOW_DOWNGRADE_AFTER_MS + 500)
+    expect(later.tier).toBe('medium')
+  })
+
+  it('잠깐의 하락으로는 내려가지 않는다 — 화면이 오르내리면 연출이 나빠진다', () => {
+    const dipped = hold(createQuality('high'), 45, SLOW_DOWNGRADE_AFTER_MS / 2)
+    const recovered = hold(dipped, 60, 1000)
+    expect(hold(recovered, 45, SLOW_DOWNGRADE_AFTER_MS / 2 + 500).tier).toBe('high')
+  })
+
+  it('게이트가 재는 선(50fps) 위에서는 건드리지 않는다', () => {
+    const fine = hold(createQuality('high'), SLOW_DOWNGRADE_FPS + 1, SLOW_DOWNGRADE_AFTER_MS * 2)
+    expect(fine.tier).toBe('high')
+  })
+
+  it('1차 규칙이 여전히 더 빠르다 — 심한 저하는 3초에 잡는다', () => {
+    const bad = hold(createQuality('high'), DOWNGRADE_FPS - 5, DOWNGRADE_AFTER_MS + 100)
+    expect(bad.tier).toBe('medium')
+  })
+
+  it('직접 고른 뒤에는 2차 규칙도 멈춘다', () => {
+    const manual = setManual(createQuality('high'), 'high')
+    expect(hold(manual, 45, SLOW_DOWNGRADE_AFTER_MS * 2).tier).toBe('high')
   })
 })

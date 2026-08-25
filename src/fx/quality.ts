@@ -42,8 +42,10 @@ export interface QualityState {
   readonly tier: Quality
   /** 사용자가 직접 골랐는가. 그렇다면 자동 조정을 멈춘다. */
   readonly manual: boolean
-  /** 30fps 미만이 이어진 시간 */
+  /** `DOWNGRADE_FPS` 미만이 이어진 시간 */
   readonly belowMs: number
+  /** `SLOW_DOWNGRADE_FPS` 미만이 이어진 시간 */
+  readonly slowBelowMs: number
   /** 60fps 가 안정적으로 유지된 시간 */
   readonly stableMs: number
   /** 자동 강등 안내를 이미 보여줬는가. 한 번만 띄운다. */
@@ -52,11 +54,27 @@ export interface QualityState {
 
 export const DOWNGRADE_FPS = 30
 export const DOWNGRADE_AFTER_MS = 3000
+
+/**
+ * 느린 2차 강등 — **게이트가 재는 선**이다.
+ *
+ * 게이트의 60fps 유지율은 프레임이 `FRAME_HELD_MS`(20ms, 곧 50fps) 이하인지로
+ * 센다. 1차 규칙만 있으면 35~49fps 로 계속 도는 기기는 유지율이 0 에 가까운데도
+ * 화질이 그대로다 — 티어 시스템이 지켜야 할 것을 못 지킨다.
+ *
+ * 대신 **훨씬 느리게** 반응한다. 잠깐의 하락으로 화면이 오르내리면 연출 인상이
+ * 나빠지고, 그것도 게이트 항목이다. 계속 낮은 기기만 구제한다.
+ *
+ * → prompts/m1-gate.md · src/telemetry/frames.ts
+ */
+export const SLOW_DOWNGRADE_FPS = 50
+export const SLOW_DOWNGRADE_AFTER_MS = 10000
+
 export const UPGRADE_FPS = 58
 export const UPGRADE_AFTER_MS = 5000
 
 export function createQuality(tier: Quality = 'medium'): QualityState {
-  return { tier, manual: false, belowMs: 0, stableMs: 0, notified: false }
+  return { tier, manual: false, belowMs: 0, slowBelowMs: 0, stableMs: 0, notified: false }
 }
 
 export interface QualityChange {
@@ -79,13 +97,15 @@ export function observeFps(state: QualityState, fps: number, dtMs: number): Qual
 
   const step = Math.max(0, dtMs)
   const belowMs = fps < DOWNGRADE_FPS ? state.belowMs + step : 0
+  const slowBelowMs = fps < SLOW_DOWNGRADE_FPS ? state.slowBelowMs + step : 0
   const stableMs = fps >= UPGRADE_FPS ? state.stableMs + step : 0
 
-  if (belowMs >= DOWNGRADE_AFTER_MS) {
+  const sank = belowMs >= DOWNGRADE_AFTER_MS || slowBelowMs >= SLOW_DOWNGRADE_AFTER_MS
+  if (sank) {
     const lower = downgrade(state.tier)
     if (lower !== state.tier) {
       return {
-        state: { ...state, tier: lower, belowMs: 0, stableMs: 0, notified: true },
+        state: { ...state, tier: lower, belowMs: 0, slowBelowMs: 0, stableMs: 0, notified: true },
         downgraded: true,
         upgraded: false,
         notify: !state.notified,
@@ -97,7 +117,7 @@ export function observeFps(state: QualityState, fps: number, dtMs: number): Qual
     const higher = upgrade(state.tier)
     if (higher !== state.tier) {
       return {
-        state: { ...state, tier: higher, belowMs: 0, stableMs: 0 },
+        state: { ...state, tier: higher, belowMs: 0, slowBelowMs: 0, stableMs: 0 },
         downgraded: false,
         upgraded: true,
         notify: false,
@@ -105,7 +125,10 @@ export function observeFps(state: QualityState, fps: number, dtMs: number): Qual
     }
   }
 
-  return { state: { ...state, belowMs, stableMs }, downgraded: false, upgraded: false, notify: false }
+  return {
+    state: { ...state, belowMs, slowBelowMs, stableMs },
+    downgraded: false, upgraded: false, notify: false,
+  }
 }
 
 /** 사용자가 직접 고른다. 이후 자동 조정은 멈춘다. */
