@@ -27,6 +27,7 @@ import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
 import { BloomLayer } from './render/postfx/bloomLayer.ts'
 import { LightLayer } from './render/postfx/lightLayer.ts'
 import { ScreenFilter } from './render/postfx/screenFilter.ts'
+import { EnemyRenderer } from './render/enemyRenderer.ts'
 import { ParallaxRenderer } from './render/parallax.ts'
 import { S1_PALETTE } from './scenery/stage1.ts'
 import { SpriteSheet, matrixToTexture } from './render/spriteTexture.ts'
@@ -111,7 +112,9 @@ const parallax = new ParallaxRenderer(backdropRoot, foregroundRoot, bloomLayer.e
 const greybox = new GreyboxRenderer(stageRoot)
 const enemyGfx = new Graphics()
 const bossGfx = new Graphics()
-stageRoot.addChild(enemyGfx, bossGfx)
+stageRoot.addChild(bossGfx)
+const enemyRenderer = new EnemyRenderer(stageRoot)
+stageRoot.addChild(enemyGfx)
 
 const sheet = new SpriteSheet()
 sheet.warmUp(['relic', 'steel', 'bare', 'bones'],
@@ -371,16 +374,14 @@ app.ticker.add(() => {
 })
 
 function drawEnemies(): void {
+  enemyRenderer.draw(world.enemies, loop.tick)
+  // 히트박스는 디버그에서만 겹쳐 그린다. 스프라이트와 판정이 어긋나면 여기서 보인다.
   const g = enemyGfx.clear()
-  const COLORS: Record<string, number> = { ghoul: 0x7a9660, grimm: 0xe23e4e, corvid: 0x5f6e85 }
+  if (!showDebugBoxes) return
   for (const enemy of world.enemies) {
     const box = boxOfEnemy(enemy)
-    const color = enemy.hitFlash > 0 ? 0xffffff : (COLORS[enemy.kind] ?? 0xffffff)
-    g.rect(Math.round(box.x), Math.round(box.y), box.width, box.height).fill(color)
-    // 그림의 대기 상태는 눈에 띄어야 한다 — 화면 안에서 먼저 보여야 공정하다.
-    if (enemy.kind === 'grimm' && enemy.state === 'dormant') {
-      g.rect(Math.round(box.x) + 3, Math.round(box.y) + 3, 2, 2).fill(0xffd84a)
-    }
+    g.rect(Math.round(box.x), Math.round(box.y), box.width, box.height)
+      .stroke({ width: 1, color: 0xe23e4e })
   }
 }
 
