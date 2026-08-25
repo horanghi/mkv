@@ -411,3 +411,65 @@ describe('보물상자 — 무기와 성유물의 유일한 획득 경로', () =
     expect(fresh().chests.length).toBe(STAGE_1.chests.length)
   })
 })
+
+/**
+ * 제한 시간 — docs/02 2.8 "시간 초과: 잔기 1 소모, 체크포인트에서 재시작".
+ *
+ * 난이도가 조절하는 세 축(잔기·시간·체크포인트) 중 하나다. 이게 안 걸리면
+ * 종자 8분과 성기사 4분이 화면에 뜨는 숫자일 뿐 아무 차이도 없다.
+ */
+describe('제한 시간', () => {
+  /** 제한 시간에 딱 못 미치게 앉혀 둔 월드. 굴리기만 하면 끊긴다. */
+  function almostOut(ticksLeft: number): World {
+    const limit = Math.round(balance.player.stageTimeLimitSeconds * 60)
+    return { ...fresh(), elapsedTicks: limit - ticksLeft }
+  }
+
+  it('처음에는 0 에서 시작한다', () => {
+    expect(fresh().elapsedTicks).toBe(0)
+  })
+
+  it('틱마다 흐른다', () => {
+    expect(run(almostOut(999), 10).world.elapsedTicks).toBeGreaterThan(
+      almostOut(999).elapsedTicks)
+  })
+
+  it('제한 시간 전에는 죽지 않는다', () => {
+    const step = run(almostOut(2), 1)
+    expect(step.world.vitals.dead).toBe(false)
+  })
+
+  it('제한 시간에 닿으면 죽는다 — 사인은 시간 초과다', () => {
+    // 사인은 그 틱의 이벤트에만 실린다. 헬퍼는 개수만 세므로 직접 돌린다.
+    const step = stepWorld(almostOut(1), INITIAL_INPUT, balance)
+    expect(step.world.vitals.dead).toBe(true)
+    expect(step.events.cause).toBe('timeout')
+  })
+
+  it('잔기를 1 먹는다 — 즉시 게임 오버가 아니다', () => {
+    const before = fresh().vitals.lives
+    const dead = stepWorld(almostOut(1), INITIAL_INPUT, balance).world
+    // 잔기는 사망이 아니라 부활에서 줄어든다.
+    const back = run(dead, RESPAWN_DELAY_TICKS + 2).world
+    expect(back.vitals.lives).toBe(before - 1)
+    expect(back.gameOver).toBe(false)
+  })
+
+  it('부활하면 시계가 되감긴다 — 안 그러면 되살아나자마자 또 끊긴다', () => {
+    let w = run(almostOut(1), 1).world
+    w = run(w, RESPAWN_DELAY_TICKS + 2).world
+    expect(w.vitals.dead).toBe(false)
+    expect(w.elapsedTicks).toBeLessThan(10)
+  })
+
+  it('클리어한 뒤에는 시간이 죽이지 않는다', () => {
+    const cleared = { ...almostOut(1), cleared: true }
+    const step = run(cleared, 2)
+    expect(step.world.vitals.dead).toBe(false)
+  })
+
+  it('이어하기도 시계를 되감는다', () => {
+    const over = { ...almostOut(1), gameOver: true, elapsedTicks: 12345 }
+    expect(continueFrom(over, balance).elapsedTicks).toBe(0)
+  })
+})

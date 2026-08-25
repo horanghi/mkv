@@ -295,7 +295,6 @@ let deathFlesh: readonly string[] | null = null
 let showDebugBoxes = DEV
 let hud: HudState = INITIAL_HUD
 let music: MusicState = INITIAL_MUSIC
-let elapsedTicks = 0
 let bossSeen = false
 let run: RunStats = createRun(stage.sections.length)
 let pauseState: PauseState = RUNNING
@@ -326,7 +325,6 @@ function reset(): void {
   resultsElapsedMs = 0
   resultsScreen.close()
   gameOverScreen.close()
-  elapsedTicks = 0
   bossSeen = false
   director.reset()
   deathFlesh = null
@@ -442,7 +440,6 @@ app.ticker.add(() => {
     // 같은 프레임에 들어올 때 조작 복귀가 통째로 안 보인다.
     if (deadBefore && !world.vitals.dead) respawnedThisFrame = true
 
-    elapsedTicks += 1
     run = stepRun(run, {
       events: result.events,
       sectionIndex: sectionAt(stage, world.player.body.x),
@@ -557,7 +554,9 @@ app.ticker.add(() => {
 
   drawLighting(features, now)
 
-  const secondsLeft = balance.player.stageTimeLimitSeconds - elapsedTicks / 60
+  // 시계는 월드가 든다 — 시간 초과로 죽이는 쪽과 화면에 그리는 쪽이 갈리면
+  // 00:00 인데 안 죽거나 그 반대가 된다.
+  const secondsLeft = balance.player.stageTimeLimitSeconds - world.elapsedTicks / 60
   const busy = world.enemies.length > 0 || world.cairn.awake || isInvulnerable(world.vitals)
   hud = stepHud(hud, {
     vitals: world.vitals,
@@ -587,7 +586,7 @@ app.ticker.add(() => {
   // --- 결과 화면 -----------------------------------------------------------
   if (world.cleared && results === null) {
     results = buildResults(run, {
-      secondsLeft: balance.player.stageTimeLimitSeconds - elapsedTicks / 60,
+      secondsLeft: balance.player.stageTimeLimitSeconds - world.elapsedTicks / 60,
       enemyTotal: stage.enemies.length,
     })
     resultsElapsedMs = 0

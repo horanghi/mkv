@@ -69,6 +69,13 @@ export interface World {
   readonly nextEnemyId: number
   /** 사망 후 부활까지 남은 틱 */
   readonly respawnTicks: number
+  /**
+   * 이번 시도의 경과 틱. 제한 시간을 재는 시계다.
+   *
+   * 시간 초과는 잔기 1 을 먹고 체크포인트에서 다시 시작한다 (docs/02 2.8).
+   * **다시 시작할 때 0 으로 돌아간다** — 안 그러면 부활하자마자 또 끊긴다.
+   */
+  readonly elapsedTicks: number
   readonly cleared: boolean
   /**
    * 잔기를 다 썼다. 플레이어가 고를 때까지 멈춘다.
@@ -86,7 +93,7 @@ export interface World {
  * 재시도율이 낮을 때 난이도를 낮추는 것 말고 할 수 있는 게 없다.
  * → prompts/m1-gate.md
  */
-export type DamageCause = EnemyKind | 'cairn' | 'pit'
+export type DamageCause = EnemyKind | 'cairn' | 'pit' | 'timeout'
 
 /** 이번 틱에 일어난 일. 연출과 소리가 여기에 반응한다. */
 export interface WorldEvents {
@@ -179,6 +186,7 @@ export function createWorld(stage: Stage, balance: Balance, seed = 20260825): Wo
     rng,
     nextEnemyId: id,
     respawnTicks: 0,
+    elapsedTicks: 0,
     cleared: false,
     gameOver: false,
   }
@@ -363,6 +371,17 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
     events = { ...events, died: true, cause: 'pit' }
   }
 
+  // 시간 초과 — 잔기 1 을 먹고 체크포인트에서 다시 시작한다. → docs/02 2.8
+  //
+  // 낙사와 같은 처리다. 갑옷이 남았든 아니든 시간은 봐주지 않는다.
+  // 30초 전부터 시계가 붉게 뛰고 BGM 이 빨라지므로 예고 없는 죽음은 아니다.
+  const elapsedTicks = world.elapsedTicks + 1
+  const limitTicks = Math.round(balance.player.stageTimeLimitSeconds * 60)
+  if (!vitals.dead && !world.cleared && elapsedTicks >= limitTicks) {
+    vitals = fallIntoPit(vitals)
+    events = { ...events, died: true, cause: 'timeout' }
+  }
+
   // --- 애니메이션 · 카메라 --------------------------------------------------
   const wanted = events.hurt ? 'hurt' : nextClip(player, world.clip)
   const clip = advanceClip(
@@ -383,6 +402,7 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
       weaponId, rng, nextEnemyId,
       enemies: pruneEnemies(enemies, map),
       respawnTicks: vitals.dead ? RESPAWN_DELAY_TICKS : 0,
+      elapsedTicks,
       cleared: world.cleared || bossKilled,
     },
     input: nextInput,
@@ -426,6 +446,8 @@ function stepDead(world: World, input: InputState, balance: Balance): WorldStep 
       crumble: resetCrumble(),
       map: world.stage.map,
       respawnTicks: 0,
+      // 시계를 되감는다. 안 그러면 시간 초과로 죽은 사람이 부활하자마자 또 끊긴다.
+      elapsedTicks: 0,
       camera: snapCamera(
         { x: player.body.x, y: player.body.y, facing: 0, falling: false },
         boundsOf(world.stage),
@@ -462,6 +484,7 @@ export function continueFrom(world: World, balance: Balance): World {
     crumble: resetCrumble(),
     map: world.stage.map,
     respawnTicks: 0,
+    elapsedTicks: 0,
     gameOver: false,
     camera: snapCamera(
       { x: player.body.x, y: player.body.y, facing: 0, falling: false },

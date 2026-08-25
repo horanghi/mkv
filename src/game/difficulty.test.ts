@@ -5,6 +5,8 @@ import {
   DEFAULT_DIFFICULTY, DIFFICULTIES, DIFFICULTY_RULES,
   applyDifficulty, applyDifficultyToStage, parseDifficulty, rulesFor,
 } from './difficulty.ts'
+import { INITIAL_INPUT } from '../core/input.ts'
+import { createWorld, stepWorld } from './world.ts'
 
 const balance = loadBalance()
 
@@ -123,5 +125,35 @@ describe('저장된 설정 읽기', () => {
     expect(parseDifficulty(null)).toBe(DEFAULT_DIFFICULTY)
     expect(parseDifficulty(3)).toBe(DEFAULT_DIFFICULTY)
     expect(parseDifficulty(undefined)).toBe(DEFAULT_DIFFICULTY)
+  })
+})
+
+/**
+ * 제한 시간이 난이도마다 실제로 다르게 끊는가.
+ *
+ * 표에 8분·5분·4분이 적혀 있어도 월드가 그 값으로 끊지 않으면 화면에 뜨는
+ * 숫자만 다른 것이다. 관용 축은 **작동해야** 축이다. → docs/02 2.8 · docs/08 8.4
+ */
+describe('제한 시간이 난이도를 따른다', () => {
+  const base = loadBalance()
+
+  for (const id of DIFFICULTIES) {
+    it(`${rulesFor(id).name} — ${rulesFor(id).stageTimeSeconds / 60}분에 끊긴다`, () => {
+      const balance = applyDifficulty(base, id)
+      const limit = Math.round(rulesFor(id).stageTimeSeconds * 60)
+      const world = createWorld(applyDifficultyToStage(STAGE_1, id), balance)
+
+      const 직전 = stepWorld({ ...world, elapsedTicks: limit - 2 }, INITIAL_INPUT, balance)
+      expect(직전.world.vitals.dead).toBe(false)
+
+      const 초과 = stepWorld({ ...world, elapsedTicks: limit - 1 }, INITIAL_INPUT, balance)
+      expect(초과.events.cause).toBe('timeout')
+    })
+  }
+
+  it('종자가 성기사보다 오래 버틴다', () => {
+    const 종자 = applyDifficulty(base, 'squire').player.stageTimeLimitSeconds
+    const 성기사 = applyDifficulty(base, 'paladin').player.stageTimeLimitSeconds
+    expect(종자).toBeGreaterThan(성기사)
   })
 })
