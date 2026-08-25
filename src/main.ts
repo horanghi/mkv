@@ -51,7 +51,7 @@ import { HUD_BAR_HEIGHT, HudRenderer } from './render/hudRenderer.ts'
 import { Sfx } from './core/sfx.ts'
 import { Bgm } from './core/bgm.ts'
 import {
-  DUCK, INITIAL_MUSIC, duckMusic, silence, stepMusic, type MusicState,
+  DUCK, INITIAL_MUSIC, duckMusic, silence, stepMusic, toBossTheme, type MusicState,
 } from './core/audio.ts'
 import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
 import { Playtest } from './ui/report/playtest.ts'
@@ -432,7 +432,8 @@ app.ticker.add(() => {
     // 보스 등장 — 0.3초 무음. 소리가 사라지면 사람은 화면을 본다.
     if (!bossSeen && world.cairn.awake) {
       bossSeen = true
-      music = silence(music)
+      // 0.3초 무음 뒤 보스 테마로 넘어간다. 소리가 사라지면 사람은 화면을 본다.
+      music = toBossTheme(silence(music))
     }
   }
   logicMs = performance.now() - logicStart

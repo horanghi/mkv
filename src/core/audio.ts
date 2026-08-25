@@ -6,6 +6,8 @@
  * → docs/07-audio.md 7.2
  */
 
+import type { Theme } from './bgmPattern.ts'
+
 export const STEMS = ['rhythm', 'bass', 'melody', 'chorus', 'percussion'] as const
 export type Stem = (typeof STEMS)[number]
 
@@ -29,6 +31,8 @@ export const BARE_LOWPASS_HZ = 800
 export const HURRY_TEMPO = 1.12
 
 export interface MusicState {
+  /** 어떤 곡인가. 보스룸에 들어가면 바뀐다 → docs/07 7.2 */
+  readonly theme: Theme
   readonly mix: StemMix
   readonly lowpassHz: number | null
   readonly tempo: number
@@ -41,6 +45,7 @@ export interface MusicState {
 }
 
 export const INITIAL_MUSIC: MusicState = Object.freeze({
+  theme: 'stage' as Theme,
   mix: ARMOR_MIX.steel,
   lowpassHz: null,
   tempo: 1,
@@ -91,6 +96,17 @@ export function duckMusic(state: MusicState, spec: { amountDb: number; recoveryM
   return { ...state, duck: target, duckRecoveryMs: spec.recoveryMs, duckElapsedMs: 0 }
 }
 
+/**
+ * 보스 테마로 넘어간다.
+ *
+ * **퍼커션이 항상 열린다.** 보스전에서 마디 첫 박의 타격은 장식이 아니라
+ * 패턴을 세는 박자다 — 잔여 30초에만 열리는 스테이지 규칙과 다르다.
+ */
+export function toBossTheme(state: MusicState): MusicState {
+  if (state.theme === 'boss') return state
+  return { ...state, theme: 'boss', mix: { ...state.mix, percussion: 1 } }
+}
+
 export function silence(state: MusicState, ms: number = BOSS_SILENCE_MS): MusicState {
   return { ...state, silenceMs: ms }
 }
@@ -109,8 +125,14 @@ export function stepMusic(state: MusicState, inputs: MusicInputs, dtMs: number):
     if (t >= 1) duck = 1
   }
 
+  const base = mixFor(inputs)
+  // 보스전에서는 퍼커션이 늘 열려 있다. 마디 첫 박의 타격이 패턴을 세는
+  // 박자라, 잔여 30초 규칙에 맡기면 정작 필요할 때 없다.
+  const mix = state.theme === 'boss' ? { ...base, percussion: 1 } : base
+
   return {
-    mix: mixFor(inputs),
+    theme: state.theme,
+    mix,
     lowpassHz: lowpassFor(inputs),
     tempo: tempoFor(inputs),
     duck,

@@ -1,5 +1,5 @@
 import { STEMS, gainsOf, type MusicState, type Stem } from './audio.ts'
-import { notesAt, stepSeconds, type Note } from './bgmPattern.ts'
+import { notesAt, stepSeconds, type Note, type Theme } from './bgmPattern.ts'
 
 /**
  * BGM 합성 드라이버.
@@ -92,7 +92,7 @@ export class Bgm {
       this.lowpass.frequency.setTargetAtTime(state.lowpassHz ?? OPEN_HZ, ctx.currentTime, 0.12)
     }
 
-    this.schedule(ctx, state.tempo)
+    this.schedule(ctx, state.tempo, state.theme)
   }
 
   /** 컨텍스트가 죽었을 때 다시 붙을 수 있도록 비운다. */
@@ -103,7 +103,7 @@ export class Bgm {
     this.stems.clear()
   }
 
-  private schedule(ctx: AudioContext, tempo: number): void {
+  private schedule(ctx: AudioContext, tempo: number, theme: Theme): void {
     const spanSeconds = stepSeconds(tempo)
     const horizon = ctx.currentTime + LOOKAHEAD_SECONDS
 
@@ -115,7 +115,7 @@ export class Bgm {
       for (const stem of STEMS) {
         const node = this.stems.get(stem)
         if (!node) continue
-        for (const note of notesAt(stem, this.step)) {
+        for (const note of notesAt(stem, this.step, theme)) {
           this.playNote(ctx, node, VOICES[stem], note, this.nextNoteAt, spanSeconds)
         }
       }

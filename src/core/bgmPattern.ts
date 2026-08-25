@@ -11,10 +11,24 @@ import type { Stem } from './audio.ts'
  * 순수 데이터다. 소리를 내는 것은 `core/bgm.ts` 다.
  */
 
+/** 어떤 곡을 연주하는가. 보스룸에 들어가면 바뀐다. → docs/07 7.2 */
+export const THEMES = ['stage', 'boss'] as const
+export type Theme = (typeof THEMES)[number]
+
 /** 3/4 박자. 한 박을 8분음표 둘로 쪼갠다. */
 export const STEPS_PER_BAR = 6
 export const BARS = 8
 export const TOTAL_STEPS = STEPS_PER_BAR * BARS
+
+/**
+ * 보스 테마 — 4/4. 왈츠와 박자가 달라야 방이 바뀐 것으로 들린다.
+ *
+ * docs/07 7.4 가 캐른을 "무겁고 느린 리프, 튜토리얼답게 단순" 으로 정했다.
+ * 마디를 8스텝으로 늘려 같은 시계에서도 느리게 들리게 했다.
+ */
+export const BOSS_STEPS_PER_BAR = 8
+export const BOSS_BARS = 4
+export const BOSS_TOTAL_STEPS = BOSS_STEPS_PER_BAR * BOSS_BARS
 
 /** docs/07 7.3 의 S1 템포. */
 export const BASE_BPM = 96
@@ -89,7 +103,9 @@ const BELL_STEPS = new Set([0, 4 * STEPS_PER_BAR])
  * 스템마다 다른 것을 낸다. 게인은 밖에서 믹스로 다시 곱하므로
  * 여기서는 스템 안에서의 상대 세기만 정한다.
  */
-export function notesAt(stem: Stem, step: number): readonly Note[] {
+export function notesAt(stem: Stem, step: number, theme: Theme = 'stage'): readonly Note[] {
+  if (theme === 'boss') return bossNotesAt(stem, step)
+
   const index = ((step % TOTAL_STEPS) + TOTAL_STEPS) % TOTAL_STEPS
   const bar = Math.floor(index / STEPS_PER_BAR)
   const beat = index % STEPS_PER_BAR
@@ -127,9 +143,68 @@ export function notesAt(stem: Stem, step: number): readonly Note[] {
   }
 }
 
+/**
+ * 보스 화성 — i · i · VI · V. 네 마디짜리 단순한 순환.
+ *
+ * 튜토리얼 보스라 복잡할 이유가 없다. 반복이 곧 패턴 학습의 박자가 된다.
+ */
+const BOSS_PROGRESSION: readonly Chord[] = [
+  { root: N.D3 / 2, upper: [N.D4, N.F4, N.A4] },   // Dm
+  { root: N.D3 / 2, upper: [N.D4, N.F4, N.A4] },
+  { root: N.Bb2, upper: [N.Bb3, N.D4, N.F4] },     // Bb
+  { root: N.A2, upper: [N.A3, N.Cs4, N.E4] },      // A
+]
+
+/** 보스 선율. 낮고 성기다 — 리프가 주인공이고 선율은 거든다. */
+const BOSS_MELODY: readonly (number | null)[] = [
+  N.D4, null, null, null, N.F4, null, null, null,
+  N.D4, null, null, null, N.E4, null, null, null,
+  N.F4, null, null, null, N.G4, null, null, null,
+  N.E4, null, null, null, null, null, null, null,
+]
+
+function bossNotesAt(stem: Stem, step: number): readonly Note[] {
+  const index = ((step % BOSS_TOTAL_STEPS) + BOSS_TOTAL_STEPS) % BOSS_TOTAL_STEPS
+  const bar = Math.floor(index / BOSS_STEPS_PER_BAR)
+  const beat = index % BOSS_STEPS_PER_BAR
+  const chord = BOSS_PROGRESSION[bar] as Chord
+
+  switch (stem) {
+    case 'bass':
+      // 1박과 3박. 4/4 의 무게중심이고, 길게 끌어 무겁게 만든다.
+      return beat === 0 || beat === 4
+        ? [{ hz: chord.root, steps: 4, gain: 1 }]
+        : []
+
+    case 'rhythm': {
+      // 리프 — 뒷박에 5도를 짧게 찍는다. 이게 "무겁고 느린 리프" 의 몸통이다.
+      if (beat % 2 !== 1) return []
+      const fifth = chord.root * 3
+      return [{ hz: fifth, steps: 1, gain: beat === 1 ? 0.55 : 0.35 }]
+    }
+
+    case 'melody': {
+      const hz = BOSS_MELODY[index]
+      return hz === null || hz === undefined ? [] : [{ hz, steps: 4, gain: 0.6 }]
+    }
+
+    case 'chorus':
+      // 성유물을 입고 보스와 싸우면 성가가 얹힌다. 마디 전체를 깐다.
+      return beat === 0 ? [{ hz: chord.root * 4, steps: BOSS_STEPS_PER_BAR, gain: 0.3 }] : []
+
+    case 'percussion':
+      // 마디 첫 박의 큰 타격. 보스전에서는 늘 울린다 — 패턴을 세는 박자다.
+      return beat === 0 ? [{ hz: N.D3 / 2, steps: 2, gain: 0.9 }] : []
+
+    default:
+      return []
+  }
+}
+
 /** 한 바퀴에 나오는 음 전체. 패턴이 비어 있지 않은지 확인하는 데 쓴다. */
-export function loopNotes(stem: Stem): readonly Note[] {
+export function loopNotes(stem: Stem, theme: Theme = 'stage'): readonly Note[] {
+  const total = theme === 'boss' ? BOSS_TOTAL_STEPS : TOTAL_STEPS
   const out: Note[] = []
-  for (let step = 0; step < TOTAL_STEPS; step += 1) out.push(...notesAt(stem, step))
+  for (let step = 0; step < total; step += 1) out.push(...notesAt(stem, step, theme))
   return out
 }
