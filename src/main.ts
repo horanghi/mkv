@@ -216,6 +216,9 @@ const screenFilter = new ScreenFilter()
 const pauseBlur = new BlurFilter({ strength: 2, quality: 2 })
 const pauseDesaturate = new ColorMatrixFilter()
 pauseDesaturate.saturate(-0.6, false)  // 채도 40% — docs/09 9.3
+
+/** 사망 중 채도 하강. 매 프레임 값을 다시 넣는다. → docs/06 사망 연출 */
+const deathDesaturate = new ColorMatrixFilter()
 const worldRoot = new Container()
 
 shakeRoot.addChild(backdropRoot, stageRoot, foregroundRoot)
@@ -299,7 +302,7 @@ let pauseState: PauseState = RUNNING
 /** 일시정지 키의 직전 상태. 누른 순간만 잡기 위한 것이다. */
 let prevPauseDown = false
 /** 지금 배경에 블러가 걸려 있는가. 필터 교체를 최소화한다. */
-let blurred = false
+let filterKey = ''
 /**
  * 슬로우모션 · 프레임 스텝. → docs/10 10.10
  *
@@ -340,7 +343,9 @@ function startBreak(brokenArmor: ReturnType<typeof spriteStateOf>, died: boolean
   }
   if (died) {
     deathFlesh = brokenFrame
-    director.die(origin)
+    // 흩어지는 것은 갑옷이 아니라 백골이다. 살점은 250ms 동안 벗겨지고,
+    // 그 끝에서 뼈가 12조각으로 무너진다. → docs/06 사망 연출
+    director.die({ matrix: pose(partsFor('bones'), currentPose(world.clip)), origin })
     loop = requestHitstop(loop, DEATH_TIMING.hitstopMs)
     return
   }
@@ -388,12 +393,20 @@ app.ticker.add(() => {
   const playable = isPlayable(pauseState) && !menuBusy
   const menuOpen = isMenuOpen(pauseState)
   pauseMenu.render(menuOpen, countdownNumber(pauseState), difficulty)
+  // 사망 중에는 색이 빠진다. 값은 매 프레임 바뀌지만 필터는 그대로 둔다.
+  const saturation = director.deathSaturation
+  const draining = saturation < 1
+  if (draining) deathDesaturate.saturate(-(1 - saturation), false)
+
   // 필터 배열은 바뀔 때만 갈아 끼운다. 매 프레임 새로 넣으면 파이프라인을 다시 만든다.
-  if (menuOpen !== blurred) {
-    blurred = menuOpen
-    worldRoot.filters = menuOpen
-      ? [screenFilter, pauseBlur, pauseDesaturate]
-      : [screenFilter]
+  const wanted = `${menuOpen}|${draining}`
+  if (wanted !== filterKey) {
+    filterKey = wanted
+    worldRoot.filters = [
+      screenFilter,
+      ...(menuOpen ? [pauseBlur, pauseDesaturate] : []),
+      ...(draining ? [deathDesaturate] : []),
+    ]
   }
 
   // 이 프레임 안에서 여러 틱이 돌 수 있다. 계측은 프레임 단위로 한 번 넘긴다.

@@ -25,6 +25,19 @@ import type { Matrix } from '../sprite/matrix.ts'
  * → docs/06-visual-direction.md 6.3
  */
 
+/**
+ * 백골을 이루는 색 인덱스. 아웃라인(0)과 안쪽 그림자(B)는 조각이 아니다.
+ * → `sprite/palette.ts` 의 `PAL_BONE`
+ */
+const BONE_INDICES = '9A'
+
+export interface DeathStart {
+  /** 백골 프레임. 12조각은 이 픽셀에서 나온다. → docs/06 사망 연출 */
+  readonly matrix: Matrix
+  /** 스프라이트 좌상단의 월드 좌표 */
+  readonly origin: { readonly x: number; readonly y: number }
+}
+
 export interface BreakStart {
   /** 깨진 갑옷의 실제 프레임. 파편은 이 픽셀에서 나온다. */
   readonly matrix: Matrix
@@ -39,6 +52,7 @@ export class BreakDirector {
   private shake: Shake = NO_SHAKE
   private rng: RngState
   private pending: BreakStart | null = null
+  private pendingBones: DeathStart | null = null
   private origin = { x: 0, y: 0 }
   private invertFrames = 0
 
@@ -55,9 +69,10 @@ export class BreakDirector {
     this.breakSeq = startSequence()
   }
 
-  /** 사망 시작. */
-  die(origin: { readonly x: number; readonly y: number }): void {
-    this.origin = { ...origin }
+  /** 사망 시작. 백골 조각은 250ms 뒤 `shatter` 박자에서 나온다. */
+  die(start: DeathStart): void {
+    this.origin = { ...start.origin }
+    this.pendingBones = start
     this.deathSeq = startSequence()
   }
 
@@ -67,6 +82,7 @@ export class BreakDirector {
     this.shake = NO_SHAKE
     this.shards = []
     this.pending = null
+    this.pendingBones = null
     this.invertFrames = 0
   }
 
@@ -86,7 +102,11 @@ export class BreakDirector {
       const step = advanceSequence(DEATH, this.deathSeq, frameMs)
       this.deathSeq = step.state
       for (const event of step.fired) {
-        if (event === 'shatter') this.addShake(DEATH_TIMING.shake)
+        if (event === 'shatter') {
+          // docs/06: "백골 12조각 분해 — 물리 파티클, 지면에서 굴러다님"
+          this.spawnBones()
+          this.addShake(DEATH_TIMING.shake)
+        }
       }
     }
 
@@ -124,6 +144,22 @@ export class BreakDirector {
     }
   }
 
+  /**
+   * 사망 중 화면 채도. 1 이면 그대로, 0 이면 흑백이다.
+   *
+   * docs/06 사망 연출: t=250ms 부터 채도가 0 으로 내려간다. 슬로우모션과
+   * 같은 구간을 쓴다 — 느려지는 것과 색이 빠지는 것이 한 동작으로 읽혀야 한다.
+   * 페이드가 시작되는 1250ms 에 0 에 닿는다.
+   */
+  get deathSaturation(): number {
+    if (this.deathSeq.done) return 1
+    return 1 - progressAt(
+      this.deathSeq,
+      DEATH_TIMING.skeletonizeMs,
+      DEATH_TIMING.slowmo.durationMs,
+    )
+  }
+
   /** 화면 반전 1프레임. 부를 때마다 소진된다. */
   consumeInvert(): boolean {
     if (this.invertFrames <= 0) return false
@@ -150,6 +186,21 @@ export class BreakDirector {
     this.rng = result.rng
     this.shards = [...this.shards, ...result.shards]
     this.pending = null
+  }
+
+  private spawnBones(): void {
+    if (!this.pendingBones) return
+    const result = spawnShards({
+      pixels: armorPixels(this.pendingBones.matrix, paletteFor('bones'), BONE_INDICES),
+      count: DEATH_TIMING.boneCount,
+      origin: this.pendingBones.origin,
+      // 갑옷 파괴와 달리 맞은 자리가 없다. 몸 한가운데에서 무너진다.
+      impact: { x: 16, y: 16 },
+      rng: this.rng,
+    })
+    this.rng = result.rng
+    this.shards = [...this.shards, ...result.shards]
+    this.pendingBones = null
   }
 
   private addShake(spec: { amplitude: number; durationMs: number; frequencyHz: number }): void {
