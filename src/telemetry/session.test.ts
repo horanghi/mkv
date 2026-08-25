@@ -64,6 +64,26 @@ describe('세션 계측 — 재시도율', () => {
     expect(retryRate(s)).toBe(1)
   })
 
+  it('다시 죽으면 직전 사망은 재시도로 확정된다 — 죽으려면 계속해야 한다', () => {
+    // 부활하자마자 다시 죽는 경우. 한 프레임에 부활 틱과 사망 틱이 같이 들어오면
+    // 조작 복귀가 관측되지 않는데, 그렇다고 이탈은 아니다.
+    let s = noteDeath(NEW_SESSION, 100, 'ghoul', 1000)
+    expect(s.deaths[0]?.retried).toBeNull()
+
+    s = noteDeath(s, 120, 'ghoul', 2600)
+    expect(s.deaths[0]?.retried).toBe(true)
+    expect(s.deaths[1]?.retried).toBeNull()
+  })
+
+  it('이미 이탈로 닫힌 사망은 다시 죽어도 되살아나지 않는다', () => {
+    let s = died(NEW_SESSION, 1000)
+    s = observe(s, 2500 + RETRY_WINDOW_MS + 1)   // 창을 넘겨 이탈 확정
+    expect(s.deaths[0]?.retried).toBe(false)
+
+    s = noteDeath(s, 100, 'pit', 60000)
+    expect(s.deaths[0]?.retried).toBe(false)
+  })
+
   it('9번 재시도하고 1번 이탈하면 90% 다', () => {
     let s: Session = NEW_SESSION
     for (let i = 0; i < 9; i += 1) {

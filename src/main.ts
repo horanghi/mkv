@@ -320,6 +320,7 @@ app.ticker.add(() => {
   let diedThisFrame = false
   let hurtThisFrame = false
   let brokeThisFrame = false
+  let respawnedThisFrame = false
   let causeThisFrame: DamageCause | null = null
 
   // 멈춰 있으면 시간을 누산하지 않는다. 누산하면 풀리는 순간 밀린 틱이 쏟아진다.
@@ -336,9 +337,13 @@ app.ticker.add(() => {
     if (isDown(input.pressed, 'restart')) { reset(); break }
 
     const armorBefore = spriteStateOf(world.vitals)
+    const deadBefore = world.vitals.dead
     const result = stepWorld(world, input, balance)
     world = result.world
     input = result.input
+    // 부활은 틱 단위로 본다. 프레임 앞뒤만 비교하면, 부활한 틱과 다시 죽은 틱이
+    // 같은 프레임에 들어올 때 조작 복귀가 통째로 안 보인다.
+    if (deadBefore && !world.vitals.dead) respawnedThisFrame = true
 
     elapsedTicks += 1
     run = stepRun(run, {
@@ -495,6 +500,7 @@ app.ticker.add(() => {
     cleared: world.cleared,
     bossAwake: world.cairn.awake,
     pressed: polled !== 0,
+    respawned: respawnedThisFrame,
     died: diedThisFrame,
     hurt: hurtThisFrame,
     armorBroke: brokeThisFrame,

@@ -41,6 +41,14 @@ export interface Observation {
   readonly bossAwake: boolean
   /** 이번 프레임에 조작 입력이 하나라도 있었는가 */
   readonly pressed: boolean
+  /**
+   * 이번 프레임 안에서 부활이 일어났는가.
+   *
+   * 한 프레임에 여러 틱이 돌기 때문에 프레임 앞뒤만 비교하면 놓친다 —
+   * 부활 틱과 사망 틱이 같은 프레임에 들어오면 둘 다 안 보인다.
+   * 호출부가 틱 단위로 보고한다.
+   */
+  readonly respawned: boolean
   readonly died: boolean
   readonly hurt: boolean
   readonly armorBroke: boolean
@@ -50,13 +58,19 @@ export interface Observation {
 export function record(state: RecorderState, o: Observation): RecorderState {
   let session = noteFrame(state.session, pushFrame(state.session.frames, o.frameMs), o.nowMs)
 
-  // 순서가 규칙이다. 사망 → 복귀 → 입력.
-  // 복귀를 입력보다 나중에 처리하면, 부활 프레임에 눌린 키가 재시도로 안 잡힌다.
+  // 순서가 규칙이다. **복귀 → 입력 → 사망.**
+  //
+  // 복귀와 입력은 *직전* 사망에 붙는 것이므로 새 사망을 밀어 넣기 전에 처리해야
+  // 한다. 사망을 먼저 처리하면 같은 프레임에 부활과 사망이 겹칠 때 조작 복귀가
+  // 방금 생긴 사망에 잘못 붙는다.
+  //
+  // 복귀가 입력보다 먼저인 이유는 따로 있다 — 부활 프레임에 이미 눌려 있던
+  // 키를 재시도로 잡으려면 창이 먼저 열려 있어야 한다.
+  if (o.respawned || (state.wasDead && !o.dead)) session = noteControlBack(session, o.nowMs)
+  if (o.pressed) session = noteInput(session, o.nowMs)
   if (o.died) session = noteDeath(session, o.playerX, o.cause, o.nowMs)
   if (o.hurt) session = noteHurt(session)
   if (o.armorBroke) session = noteArmorBreak(session)
-  if (state.wasDead && !o.dead) session = noteControlBack(session, o.nowMs)
-  if (o.pressed) session = noteInput(session, o.nowMs)
   if (o.bossAwake) session = noteBossReached(session)
   if (o.cleared && !state.wasCleared) session = noteClear(session, o.nowMs)
 

@@ -5,7 +5,7 @@ import { NEW_SESSION, noteClear } from './session.ts'
 
 const QUIET: Observation = {
   nowMs: 0, frameMs: 16, dead: false, playerX: 100, cleared: false,
-  bossAwake: false, pressed: false, died: false, hurt: false,
+  bossAwake: false, pressed: false, respawned: false, died: false, hurt: false,
   armorBroke: false, cause: null,
 }
 
@@ -103,5 +103,25 @@ describe('계측 기록기', () => {
 
     expect(before.session.deaths).toHaveLength(0)
     expect(before.wasDead).toBe(false)
+  })
+})
+
+describe('한 프레임에 부활과 사망이 같이 들어올 때', () => {
+  it('부활을 틱 단위로 보고하면 조작 복귀가 기록된다', () => {
+    // 프레임 앞뒤만 비교하면 dead 가 true → true 라 복귀가 안 보인다.
+    let s = record(NEW_RECORDER, at(1000, { died: true, dead: true, cause: 'ghoul' }))
+    s = record(s, at(2500, { respawned: true, dead: true, died: true, cause: 'ghoul' }))
+
+    // 첫 사망은 조작이 돌아온 것이 기록되고, 재시도로 확정된다
+    expect(s.session.deaths[0]?.controlBackMs).toBe(2500)
+    expect(s.session.deaths[0]?.retried).toBe(true)
+    expect(s.session.deaths).toHaveLength(2)
+  })
+
+  it('부활 보고가 없어도 프레임 전이로 잡는다 — 둘 중 하나면 된다', () => {
+    let s = record(NEW_RECORDER, at(1000, { died: true, dead: true, cause: 'pit' }))
+    s = record(s, at(2500))
+
+    expect(s.session.deaths[0]?.controlBackMs).toBe(2500)
   })
 })

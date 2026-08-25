@@ -116,11 +116,19 @@ export function noteDeath(
   cause: DamageCause | null,
   nowMs: number,
 ): Session {
-  // 판정이 남은 직전 사망은 이탈로 닫는다 — 다시 죽었다는 건 계속했다는 뜻이지만,
-  // 그 재시도는 이미 입력으로 잡혔어야 한다. 안 잡혔다면 창을 넘긴 것이다.
-  const closed = closePending(session, nowMs)
+  // 판정이 남은 직전 사망은 **재시도로 확정한다.**
+  //
+  // 다시 죽었다는 것은 계속했다는 뜻이다. 창을 넘겨 놓친 경우는 `observe` 가
+  // 이미 매 프레임 이탈로 닫았을 것이므로, 여기까지 판정이 남아 있다는 건
+  // 아직 창 안이라는 뜻이다.
+  //
+  // 이게 없으면 **부활하자마자 다시 죽는 경우**가 이탈로 잡힌다. 한 프레임에
+  // 여러 틱이 도는데, 부활 틱과 사망 틱이 같은 프레임에 들어오면 조작 복귀가
+  // 관측되지 않기 때문이다. 가장 몰입한 행동이 이탈로 세어지면 지표가 뒤집힌다.
+  const resolved = withLastDeath(session, (death) =>
+    death.retried === null ? { ...death, retried: true } : death)
   const death: DeathRecord = { x, cause, atMs: nowMs, controlBackMs: null, retried: null }
-  return { ...closed, deaths: [...closed.deaths, death] }
+  return { ...resolved, deaths: [...resolved.deaths, death] }
 }
 
 /** 조작이 다시 가능해졌다. 여기서부터 재시도 창이 열린다. */
