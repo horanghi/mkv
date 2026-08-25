@@ -9,7 +9,8 @@ import {
   type Cairn,
 } from '../entities/bosses/cairn.ts'
 import {
-  boxOfEnemy, createEnemy, damage, pruneEnemies, tickFlash, touches, type Enemy,
+  boxOfEnemy, createEnemy, damage, pruneEnemies, tickFlash, touches,
+  type Enemy, type EnemyKind,
 } from '../entities/enemies/enemy.ts'
 import { stepCorvid } from '../entities/enemies/corvid.ts'
 import { stepGhoul, isVulnerable } from '../entities/enemies/ghoul.ts'
@@ -60,6 +61,15 @@ export interface World {
   readonly cleared: boolean
 }
 
+/**
+ * 무엇에 맞았는가.
+ *
+ * m1-gate 의 "무엇에 죽었는지 모름" 진단에 필요하다. 사인을 모으지 않으면
+ * 재시도율이 낮을 때 난이도를 낮추는 것 말고 할 수 있는 게 없다.
+ * → prompts/m1-gate.md
+ */
+export type DamageCause = EnemyKind | 'cairn' | 'pit'
+
 /** 이번 틱에 일어난 일. 연출과 소리가 여기에 반응한다. */
 export interface WorldEvents {
   readonly armorBroke: boolean
@@ -71,12 +81,36 @@ export interface WorldEvents {
   readonly quake: boolean
   readonly fired: boolean
   readonly landed: boolean
+  /** `hurt` 또는 `died` 일 때만 채워진다. */
+  readonly cause: DamageCause | null
 }
 
 const NO_EVENTS: WorldEvents = Object.freeze({
   armorBroke: false, died: false, hurt: false, enemiesKilled: 0,
   bossHit: 0, bossKilled: false, quake: false, fired: false, landed: false,
+  cause: null,
 })
+
+/**
+ * 이번 틱에 플레이어를 때린 것.
+ *
+ * 순서가 곧 우선순위다. 적과 보스에 동시에 닿을 수 있는데, 그럴 때 보스로
+ * 기록해야 보스룸 사망이 잡몹 사망으로 새지 않는다.
+ */
+function causeOfHit(
+  enemies: readonly Enemy[],
+  cairn: Cairn,
+  playerBox: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
+): DamageCause | null {
+  const slam = slamBox(cairn)
+  const byCairn = fragmentBoxes(cairn).some((b) => overlaps(b, playerBox))
+    || (slam !== null && overlaps(slam, playerBox))
+    || (cairn.awake && cairn.state !== 'dead' && overlaps(bodyBox(cairn), playerBox))
+  if (byCairn) return 'cairn'
+
+  const hit = enemies.find((e) => touches(e, playerBox) && isVulnerable(e))
+  return hit ? hit.kind : null
+}
 
 /** 사망에서 조작까지 3초 예산. 연출 1.25초 + 여유. → docs/02 2.6 */
 export const RESPAWN_DELAY_TICKS = 90
@@ -233,15 +267,12 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   // --- 피격 -----------------------------------------------------------------
   let vitals = tickVitals(world.vitals)
   if (!isInvulnerable(vitals)) {
-    const hitBy = enemies.some((e) => touches(e, playerBox) && isVulnerable(e))
-      || fragmentBoxes(cairn).some((b) => overlaps(b, playerBox))
-      || (slamBox(cairn) !== null && overlaps(slamBox(cairn)!, playerBox))
-      || (cairn.awake && cairn.state !== 'dead' && overlaps(bodyBox(cairn), playerBox))
+    const cause = causeOfHit(enemies, cairn, playerBox)
 
-    if (hitBy) {
+    if (cause !== null) {
       const result = takeHit(vitals, balance.player)
       vitals = result.vitals
-      events = { ...events, hurt: true, armorBroke: result.broke, died: result.died }
+      events = { ...events, hurt: true, armorBroke: result.broke, died: result.died, cause }
     }
   }
 
@@ -249,7 +280,7 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   const fellOut = player.body.y > (map.height + 2) * map.tileSize
   if (fellOut && !vitals.dead) {
     vitals = fallIntoPit(vitals)
-    events = { ...events, died: true }
+    events = { ...events, died: true, cause: 'pit' }
   }
 
   // --- 애니메이션 · 카메라 --------------------------------------------------

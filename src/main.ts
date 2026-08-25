@@ -15,7 +15,7 @@ import { skeletonizeFrame } from './fx/dissolve.ts'
 import { RELIC_LIGHT, limitLights, type Light } from './fx/light.ts'
 import { ARMOR_BREAK_TIMING, DEATH_TIMING } from './fx/sequence.ts'
 import { QUALITY_TIERS, createQuality, featuresFor, observeFps, setManual, type QualityState } from './fx/quality.ts'
-import { createWorld, stepWorld, type World } from './game/world.ts'
+import { createWorld, stepWorld, type DamageCause, type World } from './game/world.ts'
 import { partsFor, paletteFor } from './sprite/armor.ts'
 import { currentPose } from './sprite/clip.ts'
 import { pose } from './sprite/pose.ts'
@@ -34,6 +34,7 @@ import {
   DUCK, INITIAL_MUSIC, duckMusic, gainsOf, silence, stepMusic, type MusicState,
 } from './core/audio.ts'
 import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
+import { Playtest } from './ui/report/playtest.ts'
 
 /**
  * 부트스트랩과 렌더.
@@ -42,7 +43,7 @@ import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
  * 로직을 그리기에서 떼어놓아야 테스트할 수 있다.
  *
  *   ← →  이동   Z 점프   X 던지기   ↓ 웅크리기   R 처음부터
- *   F1 오버레이 · F2 궤도/히트박스 · F3 성유물 · F4 피격 · F5 화질
+ *   F1 오버레이 · F2 궤도/히트박스 · F3 성유물 · F4 피격 · F5 화질 · F6 게이트 판정
  */
 
 TextureSource.defaultOptions.scaleMode = 'nearest'
@@ -76,6 +77,15 @@ const hint = new ControlHint(host, [
   'X  던지기         ↓   웅크리기        R  처음부터',
 ])
 const keyboard = new KeyboardSource(window)
+
+/**
+ * 플레이테스트 계측.
+ *
+ * m1-gate 는 "추측하지 말고 계측한다"고 못박는다. 재시도율·시도 횟수·프레임
+ * 유지율은 사람의 기억으로 잴 수 없으므로 빌드가 직접 센다.
+ * 테스터에게는 지표를 보여주지 않는다 — 재는 걸 알면 행동이 달라진다.
+ */
+const playtest = new Playtest(host, keyboard)
 
 // --- 층 구성 -------------------------------------------------------------------
 const stageRoot = new Container()   // 카메라가 여기를 움직인다
@@ -193,7 +203,14 @@ app.ticker.add(() => {
   const frameMs = now - lastFrameAt
   lastFrameAt = now
 
-  pendingFrame |= keyboard.poll()
+  const polled = keyboard.poll()
+  pendingFrame |= polled
+
+  // 이 프레임 안에서 여러 틱이 돌 수 있다. 계측은 프레임 단위로 한 번 넘긴다.
+  let diedThisFrame = false
+  let hurtThisFrame = false
+  let brokeThisFrame = false
+  let causeThisFrame: DamageCause | null = null
 
   const stepped = advance(loop, frameMs)
   loop = stepped.state
@@ -212,6 +229,11 @@ app.ticker.add(() => {
 
     elapsedTicks += 1
     score += result.events.enemiesKilled * 200 + result.events.bossHit * 3
+
+    if (result.events.hurt) hurtThisFrame = true
+    if (result.events.died) diedThisFrame = true
+    if (result.events.armorBroke) brokeThisFrame = true
+    if (result.events.cause !== null) causeThisFrame = result.events.cause
 
     if (result.events.armorBroke || result.events.died) {
       startBreak(armorBefore, result.events.died)
@@ -321,6 +343,19 @@ app.ticker.add(() => {
   sfx.setVolume(0.6 * gainsOf(music).rhythm)
 
   overlay.render(metricsOf(frameMs))
+
+  playtest.frame({
+    frameMs,
+    dead: world.vitals.dead,
+    playerX: world.player.body.x,
+    cleared: world.cleared,
+    bossAwake: world.cairn.awake,
+    pressed: polled !== 0,
+    died: diedThisFrame,
+    hurt: hurtThisFrame,
+    armorBroke: brokeThisFrame,
+    cause: causeThisFrame,
+  })
 })
 
 function drawEnemies(): void {
@@ -460,6 +495,7 @@ window.addEventListener('keydown', (e) => {
       startBreak(before, result.died)
     }
   }
+  if (e.key === 'F6') { e.preventDefault(); playtest.toggleGatePanel() }
   if (e.key === 'F5') {
     e.preventDefault()
     const next = QUALITY_TIERS[(QUALITY_TIERS.indexOf(quality.tier) + 1) % QUALITY_TIERS.length]
@@ -467,11 +503,17 @@ window.addEventListener('keydown', (e) => {
   }
 })
 
+// 받은 바이트를 잰다. 늦게 붙는 자원까지 담으려면 로드 뒤에 한 번 더 봐야 한다.
+playtest.measureLoad()
+window.addEventListener('load', () => playtest.measureLoad())
+setTimeout(() => playtest.measureLoad(), 3000)
+
 if (DEV) {
   Object.assign(globalThis, {
     grimhollow: {
       app,
       sheet,
+      playtest,
       snapshot: () => ({ tick: loop.tick, hitstopMs: loop.hitstopMs, input, world, quality, aberration, shards: director.shards }),
       warp: (tx: number) => {
         world = { ...world, player: { ...world.player, body: { ...world.player.body, x: tx * 16 } } }

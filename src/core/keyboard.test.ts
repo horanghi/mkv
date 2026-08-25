@@ -149,3 +149,52 @@ describe('정리', () => {
     expect(source.poll()).toBe(0)
   })
 })
+
+describe('입력 멈춤', () => {
+  it('멈추면 키를 받지 않는다 — 설문에 메모를 적는 동안 랜슬이 뛰면 안 된다', () => {
+    const dom = fakeTarget()
+    const source = new KeyboardSource(dom.target)
+
+    source.setSuspended(true)
+    dom.key('keydown', 'ArrowRight')
+    dom.key('keydown', 'KeyZ')
+
+    expect(source.poll()).toBe(0)
+  })
+
+  it('멈추는 순간 눌려 있던 키를 비운다 — 유령 입력을 남기지 않는다', () => {
+    const dom = fakeTarget()
+    const source = new KeyboardSource(dom.target)
+
+    dom.key('keydown', 'ArrowRight')
+    source.setSuspended(true)
+    source.setSuspended(false)
+
+    expect(source.poll()).toBe(0)
+  })
+
+  it('다시 받으면 정상으로 돌아온다', () => {
+    const dom = fakeTarget()
+    const source = new KeyboardSource(dom.target)
+
+    source.setSuspended(true)
+    dom.key('keydown', 'ArrowRight')
+    source.setSuspended(false)
+    dom.key('keydown', 'ArrowRight')
+
+    expect(isDown(source.poll(), 'right')).toBe(true)
+  })
+
+  it('멈춤 중의 키업은 무시된다 — 뗀 것도 안 본다', () => {
+    const dom = fakeTarget()
+    const source = new KeyboardSource(dom.target)
+
+    dom.key('keydown', 'ArrowRight')
+    source.setSuspended(true)
+    dom.key('keyup', 'ArrowRight')
+    source.setSuspended(false)
+    dom.key('keydown', 'ArrowRight')
+
+    expect(isDown(source.poll(), 'right')).toBe(true)
+  })
+})

@@ -195,3 +195,66 @@ describe('불변성', () => {
     expect(w.clip.frame).toBe(before.tick)
   })
 })
+
+describe('사인 기록', () => {
+  /** 좀비가 다 솟아 걷기 시작한 뒤의 월드. 스폰 중에는 무적이라 맞지 않는다. */
+  function walking(): World {
+    let w = fresh()
+    for (let i = 0; i < 60; i += 1) w = stepWorld(w, INITIAL_INPUT, balance).world
+    return w
+  }
+
+  it('낙사는 pit 이다', () => {
+    const w = fresh()
+    const falling: World = {
+      ...w,
+      player: { ...w.player, body: { ...w.player.body, y: 99999 } },
+    }
+    expect(stepWorld(falling, INITIAL_INPUT, balance).events.cause).toBe('pit')
+  })
+
+  it('적에게 맞으면 그 적의 종류가 남는다', () => {
+    const w = walking()
+    const ghoul = w.enemies.find((e) => e.kind === 'ghoul')
+    if (ghoul === undefined) throw new Error('스테이지 1 에 좀비가 없다')
+
+    // 플레이어를 좀비 위에 겹쳐 놓는다
+    const touching: World = {
+      ...w,
+      player: { ...w.player, body: { ...w.player.body, x: ghoul.body.x, y: ghoul.body.y } },
+    }
+    const step = stepWorld(touching, INITIAL_INPUT, balance)
+
+    expect(step.events.hurt).toBe(true)
+    expect(step.events.cause).toBe('ghoul')
+  })
+
+  it('보스와 잡몹에 동시에 닿으면 보스로 센다', () => {
+    // 보스룸 사망이 잡몹 사망으로 새면 "어디서 죽는가"를 잘못 읽는다.
+    const w = walking()
+    const cairn = { ...w.cairn, awake: true }
+    const ghoul = w.enemies.find((e) => e.kind === 'ghoul')
+    if (ghoul === undefined) throw new Error('스테이지 1 에 좀비가 없다')
+
+    const spot = { x: cairn.x + 10, y: cairn.y + 10 }
+    const both: World = {
+      ...w,
+      cairn,
+      player: { ...w.player, body: { ...w.player.body, ...spot } },
+      enemies: w.enemies.map((e) => (e.id === ghoul.id ? { ...e, body: { ...e.body, ...spot } } : e)),
+    }
+    const step = stepWorld(both, INITIAL_INPUT, balance)
+
+    expect(step.events.hurt).toBe(true)
+    expect(step.events.cause).toBe('cairn')
+  })
+
+  it('아무 일 없으면 사인은 없다', () => {
+    expect(stepWorld(fresh(), INITIAL_INPUT, balance).events.cause).toBeNull()
+  })
+
+  it('죽어 있는 동안에는 사인이 남지 않는다', () => {
+    const dead: World = { ...fresh(), vitals: { ...fresh().vitals, dead: true }, respawnTicks: 30 }
+    expect(stepWorld(dead, INITIAL_INPUT, balance).events.cause).toBeNull()
+  })
+})

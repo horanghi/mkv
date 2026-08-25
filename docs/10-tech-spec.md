@@ -87,9 +87,18 @@ src/
     stage.ts      # 스테이지 데이터 · Tiled 로더 · 체크포인트
     camera.ts     # 데드존 추적 · 선행 · 낙하 확대
     score.ts
+  telemetry/      # 플레이테스트 계측 (순수 — 브라우저를 모른다)
+    session.ts    # 사망·재시도·시도 횟수
+    frames.ts     # 프레임 타임 히스토그램
+    recorder.ts   # 월드 이벤트 → 세션
+    report.ts     # 게이트 판정
+    payload.ts    # 테스터가 돌려주는 결과 꾸러미
+    storage.ts    # localStorage 보존 (주입식)
+    loadSize.ts   # 초기 로드 바이트
   ui/
     hud/
     menus/
+    report/       # 게이트 판정 패널(개발용) · 설문 카드(테스터용)
   data/           # 밸런스 데이터 (JSON) + 파서
     player.json
     weapons.json
@@ -279,6 +288,8 @@ function updateBody(body: Body, dt: number): Body {
 | `sprite/` | 95% — 순수 데이터라 전부 검증 가능하다 |
 | `fx/` | 85% — 타이밍과 물리는 검증 대상, 그리기는 제외 |
 | `render/` | 제외 (시각 검증으로 대체) |
+| `telemetry/` | 95% — 게이트 판정의 근거라 틀리면 프로젝트가 잘못된 방향으로 간다 |
+| `ui/` | 제외 (시각 검증으로 대체) |
 
 ---
 
@@ -296,6 +307,7 @@ M1까지 반드시 만들어야 할 것들:
 | 프레임 스텝 | 한 틱씩 진행 — 히트박스 검증 |
 | 밸런스 핫리로드 | `data/*.json` 수정 시 재시작 없이 반영 |
 | 리플레이 녹화·재생 | 버그 재현 + 결정론 테스트 |
+| 게이트 판정 패널 (F6) | 재시도율·프레임 유지율·시도 횟수 실시간 계측 → `prompts/m1-gate.md` |
 
 **이 도구들을 만드는 시간은 낭비가 아니다.**
 게임 개발에서 반복 확인 속도가 최종 품질을 결정한다.

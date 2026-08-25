@@ -55,6 +55,13 @@ export interface KeyboardTarget {
 export class KeyboardSource {
   private held = 0
   /**
+   * 멈춤 상태.
+   *
+   * 설문 카드처럼 화면 위의 입력창에 글을 쓸 때 켠다. 이게 없으면 메모를
+   * 적는 동안 랜슬이 점프하고 창을 던진다.
+   */
+  private suspended = false
+  /**
    * 마지막 폴링 이후 눌린 적이 있는 액션.
    *
    * 한 틱보다 짧게 눌렸다 떼어진 입력을 살리기 위한 것이다.
@@ -84,6 +91,16 @@ export class KeyboardSource {
     return frame
   }
 
+  /**
+   * 입력을 멈추거나 다시 받는다.
+   *
+   * 멈출 때 눌린 상태를 비운다 — 안 그러면 카드를 닫는 순간 유령 입력이 나간다.
+   */
+  setSuspended(suspended: boolean): void {
+    this.suspended = suspended
+    if (suspended) this.reset()
+  }
+
   /** 창 포커스를 잃었을 때. 누른 채로 남아 캐릭터가 계속 달리는 것을 막는다. */
   reset(): void {
     this.held = 0
@@ -98,6 +115,7 @@ export class KeyboardSource {
   }
 
   private onKeyDown(event: KeyLikeEvent): void {
+    if (this.suspended) return
     const action = this.bindings[event.code]
     if (action === undefined) return
     if (SWALLOW_DEFAULT.has(event.code)) event.preventDefault()
@@ -110,6 +128,7 @@ export class KeyboardSource {
   }
 
   private onKeyUp(event: KeyLikeEvent): void {
+    if (this.suspended) return
     const action = this.bindings[event.code]
     if (action === undefined) return
     if (SWALLOW_DEFAULT.has(event.code)) event.preventDefault()
