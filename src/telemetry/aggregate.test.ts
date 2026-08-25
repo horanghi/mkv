@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { MIN_TESTERS, aggregate, gateVerdict, overall, type Aggregate } from './aggregate.ts'
+import {
+  GATE_DIFFICULTY, MIN_TESTERS, aggregate, gateVerdict, overall, type Aggregate,
+} from './aggregate.ts'
 import type { Payload } from './payload.ts'
 
 function tester(patch: Partial<Payload> & { id: string }): Payload {
   return {
-    v: 2, playMin: 10, deaths: 10, retryRate: 1, attempts: 11, cleared: true,
+    v: 3, diff: GATE_DIFFICULTY, playMin: 10, deaths: 10, retryRate: 1, attempts: 11, cleared: true,
     bossReached: true, hurts: 20, armorBreaks: 6,
     fps: { held: 1, p95: 17, avg: 60, samples: 20000, worst: 30 },
     loadKB: 620, worstRespawnMs: 1750,
@@ -169,5 +171,43 @@ describe('게이트 판정', () => {
     expect(lines.map((l) => l.key)).toEqual(
       ['retryRate', 'fps', 'attempts', 'deathFx', 'load', 'controlBack'])
     for (const l of lines) expect(l.target.length).toBeGreaterThan(0)
+  })
+})
+
+describe('난이도가 섞인 결과', () => {
+  it('게이트 난이도가 아닌 것은 뺀다 — 합격선은 한 난이도의 숫자다', () => {
+    const agg = aggregate([
+      ...passingFive(),
+      tester({ id: 'easy', diff: 'squire', deaths: 100, attempts: 3 }),
+    ])
+    expect(agg.testers).toBe(5)
+    expect(agg.offDifficultyDropped).toBe(1)
+    expect(agg.offDifficulty).toEqual([['squire', 1]])
+  })
+
+  it('뺀 사람의 사망은 어느 집계에도 안 들어간다', () => {
+    const mixed = aggregate([
+      ...passingFive(),
+      tester({ id: 'easy', diff: 'squire', deaths: 100, causes: { pit: 100 }, hotspots: [[999, 100]] }),
+    ])
+    const clean = aggregate(passingFive())
+    expect(mixed.totalDeaths).toBe(clean.totalDeaths)
+    expect(mixed.causes).toEqual(clean.causes)
+    expect(mixed.hotspots).toEqual(clean.hotspots)
+  })
+
+  it('쉬운 난이도 사람이 섞여 인원만 채운 경우는 표본부족이다', () => {
+    const agg = aggregate([
+      ...Array.from({ length: 4 }, (_, i) => tester({ id: `t${i}` })),
+      tester({ id: 'easy', diff: 'squire' }),
+    ])
+    expect(agg.testers).toBe(4)
+    expect(overall(gateVerdict(agg))).toBe('unknown')
+  })
+
+  it('난이도가 없는 낡은 꾸러미는 게이트 난이도로 본다', () => {
+    const legacy = passingFive().map(({ diff: _diff, ...rest }) => rest as Payload)
+    expect(aggregate(legacy).testers).toBe(5)
+    expect(aggregate(legacy).offDifficultyDropped).toBe(0)
   })
 })

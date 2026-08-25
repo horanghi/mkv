@@ -85,9 +85,14 @@ export class PauseMenu {
       difficultyRow.appendChild(element)
     }
 
+    // 바꾸면 계측 세션이 새로 시작된다. 되돌릴 수 없으므로 누르는 자리에 적는다.
+    const difficultyWarning = document.createElement('div')
+    difficultyWarning.textContent = '바꾸면 플레이테스트 기록이 처음부터 다시 시작됩니다'
+    difficultyWarning.style.cssText = 'color:#6E6478;font-size:10px;letter-spacing:.02em'
+
     const difficultyBlock = document.createElement('div')
     difficultyBlock.style.cssText = 'display:flex;flex-direction:column;gap:5px;width:260px;align-items:center'
-    difficultyBlock.append(difficultyLabel, difficultyRow)
+    difficultyBlock.append(difficultyLabel, difficultyRow, difficultyWarning)
 
     const help = document.createElement('div')
     help.style.cssText = 'color:#8C8194;white-space:pre;text-align:center;font-size:11px;line-height:1.9'

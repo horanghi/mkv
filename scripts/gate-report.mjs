@@ -86,8 +86,10 @@ if (payloads.length === 0) {
   process.exit(2)
 }
 
-const { aggregate, gateVerdict, overall, MIN_TESTERS } =
+const { aggregate, gateVerdict, overall, MIN_TESTERS, GATE_DIFFICULTY } =
   await import('../src/telemetry/aggregate.ts')
+const { DIFFICULTY_RULES } = await import('../src/game/difficulty.ts')
+const gateName = DIFFICULTY_RULES[GATE_DIFFICULTY].name
 const { CAUSE_LABELS } = await import('../src/telemetry/report.ts')
 
 const agg = aggregate(payloads)
@@ -95,9 +97,16 @@ const lines = gateVerdict(agg)
 const verdict = overall(lines)
 
 console.log('')
-console.log(`  M1 게이트 — ${COLOR[verdict]}${MARK[verdict]}${RESET}   (테스터 ${agg.testers}명 / 최소 ${MIN_TESTERS}명)`)
+console.log(`  M1 게이트 — ${COLOR[verdict]}${MARK[verdict]}${RESET}   (${gateName} · 테스터 ${agg.testers}명 / 최소 ${MIN_TESTERS}명)`)
 if (agg.duplicatesDropped > 0) {
   console.log(`  같은 사람이 두 번 낸 것 ${agg.duplicatesDropped}건은 걸렀다.`)
+}
+if (agg.offDifficultyDropped > 0) {
+  const where = agg.offDifficulty
+    .map(([diff, n]) => `${DIFFICULTY_RULES[diff]?.name ?? diff} ${n}명`)
+    .join(', ')
+  console.log(`  \x1b[90m${gateName}가 아니라서 뺀 것 ${agg.offDifficultyDropped}건 (${where}).`)
+  console.log(`  합격선은 한 난이도에 대한 숫자다 — 섞으면 어느 쪽도 아닌 값이 된다.${RESET}`)
 }
 console.log('')
 

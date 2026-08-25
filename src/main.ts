@@ -152,6 +152,8 @@ const keyboard = new KeyboardSource(window)
  * 테스터에게는 지표를 보여주지 않는다 — 재는 걸 알면 행동이 달라진다.
  */
 const playtest = new Playtest(host, keyboard)
+// 지난 방문의 난이도와 저장된 세션이 다를 수 있다. 다르면 세션을 새로 연다.
+playtest.setDifficulty(difficulty)
 
 const pauseMenu = new PauseMenu(host, {
   onResume: () => { pauseState = togglePause(pauseState) },
@@ -162,6 +164,8 @@ const pauseMenu = new PauseMenu(host, {
     try { localStorage.setItem(DIFFICULTY_KEY, next) } catch { /* 저장 못 해도 계속한다 */ }
     balance = applyDifficulty(baseBalance, difficulty)
     stage = applyDifficultyToStage(STAGE_1, difficulty)
+    // 계측도 새로 시작한다. 난이도가 섞인 기록은 게이트에서 읽을 수 없다.
+    playtest.setDifficulty(difficulty)
     // 난이도가 바뀌면 판을 다시 시작한다. 도중에 체크포인트 수가 바뀌면
     // 이미 지나온 구간의 규칙이 달라져 기록이 뒤섞인다.
     reset()

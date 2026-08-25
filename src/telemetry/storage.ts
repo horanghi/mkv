@@ -1,3 +1,4 @@
+import { parseDifficulty } from '../game/difficulty.ts'
 import { BUCKETS, EMPTY_FRAMES, type FrameStats } from './frames.ts'
 import { EMPTY_SURVEY, NEW_SESSION, SESSION_VERSION, type DeathRecord, type Session } from './session.ts'
 
@@ -67,6 +68,7 @@ export function parseSession(value: unknown): Session {
 
   return {
     version: SESSION_VERSION,
+    difficulty: parseDifficulty(value['difficulty']),
     id: typeof value['id'] === 'string' ? value['id'] : '',
     playMs: num(value['playMs']),
     deaths: parseDeaths(value['deaths']),

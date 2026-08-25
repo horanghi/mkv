@@ -14,6 +14,8 @@ import { retryRate, worstControlBackMs, type Session } from './session.ts'
 export interface Payload {
   readonly id: string
   readonly v: number
+  /** 잰 난이도. 이게 없으면 "첫 클리어 몇 회"를 읽을 수 없다. */
+  readonly diff: string
   readonly playMin: number
   readonly deaths: number
   /** 판정이 끝난 사망만 분모에 넣은 즉시 재시도율 */
@@ -51,6 +53,7 @@ export function toPayload(session: Session, loadBytes: number | null): Payload {
   return {
     id: session.id,
     v: session.version,
+    diff: session.difficulty,
     playMin: round(session.playMs / 60000, 1),
     deaths: session.deaths.length,
     retryRate: judged === 0 ? null : round(retryRate(session), 3),

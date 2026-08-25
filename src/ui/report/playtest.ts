@@ -1,9 +1,13 @@
 import type { KeyboardSource } from '../../core/keyboard.ts'
+import type { Difficulty } from '../../game/difficulty.ts'
 import { totalLoadBytes, type SizedEntry } from '../../telemetry/loadSize.ts'
 import { toJson } from '../../telemetry/payload.ts'
 import { record, resume, type Observation, type RecorderState } from '../../telemetry/recorder.ts'
 import { MIN_DEATHS } from '../../telemetry/report.ts'
-import { answerSurvey, closePending, withId, type Session, type Survey } from '../../telemetry/session.ts'
+import {
+  answerSurvey, closePending, withDifficulty, withId,
+  type Session, type Survey,
+} from '../../telemetry/session.ts'
 import { load, save } from '../../telemetry/storage.ts'
 import { GateReportPanel } from './gateReport.ts'
 import { SurveyCard } from './surveyCard.ts'
@@ -91,6 +95,23 @@ export class Playtest {
 
     this.panel.render(this.state.session, this.loadBytes, this.entries)
     if (this.elapsedMs - this.lastSavedAt >= SAVE_INTERVAL_MS) this.persist()
+  }
+
+  /**
+   * 난이도가 바뀌었음을 알린다.
+   *
+   * 바뀌면 세션을 **버리고 새로 시작한다.** 관용 규칙이 다른 판의 사망을
+   * 한 꾸러미에 담으면 재시도율도 시도 횟수도 어느 난이도의 값이 아니게 된다.
+   */
+  setDifficulty(difficulty: Difficulty): void {
+    const next = withDifficulty(this.state.session, difficulty, makeId())
+    if (next === this.state.session) return
+
+    this.state = resume(next)
+    this.elapsedMs = 0
+    this.lastSavedAt = 0
+    this.revealed = false
+    this.persist()
   }
 
   /**

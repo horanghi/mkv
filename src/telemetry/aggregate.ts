@@ -1,3 +1,4 @@
+import { DEFAULT_DIFFICULTY } from '../game/difficulty.ts'
 import { GATE, MIN_DEATHS, type Verdict } from './report.ts'
 import type { Payload } from './payload.ts'
 
@@ -13,6 +14,15 @@ import type { Payload } from './payload.ts'
 
 /** 판정에 필요한 최소 인원. 두세 명으로 90% 를 말할 수 없다. */
 export const MIN_TESTERS = 5
+
+/**
+ * 게이트를 재는 난이도.
+ *
+ * 합격선(첫 클리어 8~15회, 재시도율 90%)은 **한 난이도에 대한 숫자다.**
+ * 종자에서 10회와 성기사에서 10회는 다른 뜻이므로 섞어서 평균 내면 어느
+ * 쪽도 아닌 값이 나온다. 기본값에서 재고, 나머지는 뺀다.
+ */
+export const GATE_DIFFICULTY = DEFAULT_DIFFICULTY
 
 export interface Aggregate {
   readonly testers: number
@@ -38,6 +48,10 @@ export interface Aggregate {
   readonly causes: Readonly<Record<string, number>>
   /** 같은 id 로 두 번 들어온 것을 걸러낸 수 */
   readonly duplicatesDropped: number
+  /** 게이트 난이도가 아니라서 뺀 수 */
+  readonly offDifficultyDropped: number
+  /** 뺀 것들이 어느 난이도였나. [난이도, 인원] */
+  readonly offDifficulty: readonly (readonly [string, number])[]
 }
 
 /**
@@ -58,7 +72,16 @@ export function aggregate(payloads: readonly Payload[]): Aggregate {
     }
     byId.set(key, payload)
   }
-  const unique = [...byId.values()]
+  const all = [...byId.values()]
+
+  // 게이트 난이도만 남긴다. 섞으면 합격선이 뜻을 잃는다.
+  const unique = all.filter((p) => (p.diff ?? GATE_DIFFICULTY) === GATE_DIFFICULTY)
+  const offCounts = new Map<string, number>()
+  for (const p of all) {
+    const diff = p.diff ?? GATE_DIFFICULTY
+    if (diff === GATE_DIFFICULTY) continue
+    offCounts.set(diff, (offCounts.get(diff) ?? 0) + 1)
+  }
 
   // 재시도율 — 사망 수로 가중한다. 두 번 죽은 사람과 서른 번 죽은 사람의
   // 무게가 같으면 안 된다.
@@ -113,6 +136,8 @@ export function aggregate(payloads: readonly Payload[]): Aggregate {
       .sort((a, b) => b[1] - a[1] || a[0] - b[0]),
     causes,
     duplicatesDropped,
+    offDifficultyDropped: all.length - unique.length,
+    offDifficulty: [...offCounts.entries()].sort((a, b) => b[1] - a[1]),
   }
 }
 

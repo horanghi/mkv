@@ -1,3 +1,4 @@
+import { DEFAULT_DIFFICULTY, type Difficulty } from '../game/difficulty.ts'
 import type { DamageCause } from '../game/world.ts'
 import { EMPTY_FRAMES, type FrameStats } from './frames.ts'
 
@@ -21,8 +22,10 @@ import { EMPTY_FRAMES, type FrameStats } from './frames.ts'
  *
  * - v1 → v2: 재시도 판정을 고쳤다. 부활하자마자 다시 죽는 경우가 이탈로
  *   세어지고 있었으므로, v1 기록의 `retried` 는 재시도율을 낮게 만든다.
+ * - v2 → v3: 난이도를 기록한다. v2 기록은 어느 난이도에서 잰 것인지 알 수
+ *   없어 "첫 클리어 몇 회"를 읽을 수 없다.
  */
-export const SESSION_VERSION = 2
+export const SESSION_VERSION = 3
 
 /**
  * 조작이 돌아온 뒤 이 시간 안에 입력이 들어오면 "즉시 재시도"로 본다.
@@ -61,6 +64,14 @@ export const EMPTY_SURVEY: Survey = Object.freeze({
 export interface Session {
   readonly version: number
   /**
+   * 이 세션을 잰 난이도.
+   *
+   * 난이도가 섞이면 "첫 클리어까지 몇 회"가 뜻을 잃는다 — 종자에서 10회와
+   * 성기사에서 10회는 다른 숫자다. docs/08 도 기록은 조합별로 분리하라고
+   * 못박고 있다. 바뀌면 세션을 새로 시작한다 (`withDifficulty`).
+   */
+  readonly difficulty: Difficulty
+  /**
    * 이 세션의 짧은 식별자.
    *
    * 테스터 여러 명의 결과를 합칠 때 같은 사람이 두 번 붙여넣은 것을 걸러낸다.
@@ -83,6 +94,7 @@ export interface Session {
 
 export const NEW_SESSION: Session = Object.freeze({
   version: SESSION_VERSION,
+  difficulty: DEFAULT_DIFFICULTY,
   id: '',
   playMs: 0,
   deaths: Object.freeze([]) as readonly DeathRecord[],
@@ -107,6 +119,21 @@ function withLastDeath(
   const deaths = session.deaths.slice(0, -1)
   deaths.push(edit(last))
   return { ...session, deaths }
+}
+
+/**
+ * 난이도가 바뀌면 **세션을 새로 시작한다.** 같은 난이도면 그대로 둔다.
+ *
+ * 이어 붙이면 한 꾸러미 안에 서로 다른 규칙에서 잰 사망이 섞인다. 그 상태의
+ * 재시도율은 어느 난이도의 값도 아니다. 기록을 잃는 대신 읽을 수 있게 둔다.
+ */
+export function withDifficulty(
+  session: Session,
+  difficulty: Difficulty,
+  id: string,
+): Session {
+  if (session.difficulty === difficulty) return session
+  return { ...NEW_SESSION, difficulty, id }
 }
 
 /** 아직 식별자가 없으면 붙인다. 한 번 붙으면 바뀌지 않는다. */

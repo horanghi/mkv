@@ -3,8 +3,8 @@ import { EMPTY_FRAMES } from './frames.ts'
 import {
   NEW_SESSION, RETRY_WINDOW_MS,
   answerSurvey, closePending, noteArmorBreak, noteBossReached, noteClear,
-  noteControlBack, noteDeath, noteFrame, noteHurt, noteInput, observe,
-  retryRate, worstControlBackMs, type Session,
+  noteControlBack, noteDeath, noteFrame, noteHurt, noteInput, observe, withDifficulty,
+  retryRate, withId, worstControlBackMs, type Session,
 } from './session.ts'
 
 /** 죽고 → 1.5초 뒤 조작 복귀. 실제 흐름과 같은 순서다. */
@@ -198,5 +198,31 @@ describe('세션 계측 — 나머지 항목', () => {
     expect(before.deaths[0]?.retried).toBeNull()
     expect(before.clears).toBe(0)
     expect(NEW_SESSION.deaths).toHaveLength(0)
+  })
+})
+
+describe('난이도가 바뀔 때', () => {
+  it('같은 난이도면 세션을 그대로 둔다', () => {
+    const started = withId(NEW_SESSION, 'a')
+    const dead = noteDeath(started, 100, 'pit', 0)
+    expect(withDifficulty(dead, dead.difficulty, 'b')).toBe(dead)
+  })
+
+  it('다른 난이도면 기록을 버리고 새로 연다 — 섞으면 읽을 수 없다', () => {
+    const dead = noteDeath(withId(NEW_SESSION, 'a'), 100, 'pit', 0)
+    const next = withDifficulty(dead, 'paladin', 'b')
+
+    expect(next.difficulty).toBe('paladin')
+    expect(next.id).toBe('b')
+    expect(next.deaths).toEqual([])
+    expect(next.playMs).toBe(0)
+    expect(next.attemptsToFirstClear).toBeNull()
+  })
+
+  it('원래 세션을 건드리지 않는다', () => {
+    const dead = noteDeath(withId(NEW_SESSION, 'a'), 100, 'pit', 0)
+    withDifficulty(dead, 'squire', 'b')
+    expect(dead.deaths).toHaveLength(1)
+    expect(dead.id).toBe('a')
   })
 })

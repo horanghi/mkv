@@ -209,3 +209,16 @@ describe('탭을 닫았다 열어도 이어진다', () => {
     expect(withId(load(store), 'tester-4').id).toBe('tester-3')
   })
 })
+
+describe('난이도 복원', () => {
+  it('저장한 난이도를 그대로 읽는다', () => {
+    const store = memoryStore()
+    save(store, { ...NEW_SESSION, difficulty: 'paladin', id: 'a' })
+    expect(load(store).difficulty).toBe('paladin')
+  })
+
+  it('난이도가 깨졌으면 기본값으로 떨어진다', () => {
+    expect(parseSession({ ...NEW_SESSION, difficulty: 'godmode' }).difficulty)
+      .toBe(NEW_SESSION.difficulty)
+  })
+})
