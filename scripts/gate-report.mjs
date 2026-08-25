@@ -1,0 +1,136 @@
+import { readFile } from 'node:fs/promises'
+
+/**
+ * m1-gate 판정 — 테스터가 보내온 결과 꾸러미를 합쳐 통과 여부를 찍는다.
+ *
+ *   npm run gate -- results/*.json
+ *   cat payloads.txt | npm run gate
+ *
+ * 입력은 빌드의 "결과 복사" 가 만든 JSON 이다. 파일 하나에 여러 개가
+ * 줄 단위로 들어 있어도 되고(메신저에서 긁어온 그대로), 파일마다 하나여도 된다.
+ *
+ * 합산 규칙과 판정은 `src/telemetry/aggregate.ts` 가 정한다 —
+ * 여기서는 읽고 찍기만 한다. 규칙이 코드에 있어야 테스트로 지킬 수 있다.
+ */
+
+const MARK = { pass: '통과', fail: '미달', unknown: '표본부족' }
+const COLOR = { pass: '\x1b[32m', fail: '\x1b[31m', unknown: '\x1b[90m' }
+const RESET = '\x1b[0m'
+
+/** 한글·한자는 터미널에서 두 칸을 먹는다. 그걸 세지 않으면 표의 열이 어긋난다. */
+function cells(text) {
+  let width = 0
+  for (const ch of text) {
+    const code = ch.codePointAt(0)
+    const wide =
+      (code >= 0x1100 && code <= 0x115f) ||
+      (code >= 0x2e80 && code <= 0xa4cf) ||
+      (code >= 0xac00 && code <= 0xd7a3) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe30 && code <= 0xfe4f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6)
+    width += wide ? 2 : 1
+  }
+  return width
+}
+
+/** `padEnd` 를 칸 수 기준으로 다시 쓴 것. */
+function pad(text, width) {
+  return text + ' '.repeat(Math.max(0, width - cells(text)))
+}
+
+/** 아무 텍스트에서나 JSON 객체를 긁어낸다. 메신저에서 붙여넣은 그대로도 받는다. */
+function extractPayloads(text) {
+  const out = []
+  let depth = 0
+  let start = -1
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    if (ch === '{') {
+      if (depth === 0) start = i
+      depth += 1
+    } else if (ch === '}') {
+      depth -= 1
+      if (depth === 0 && start >= 0) {
+        try {
+          const parsed = JSON.parse(text.slice(start, i + 1))
+          if (typeof parsed === 'object' && parsed !== null && 'fps' in parsed) out.push(parsed)
+        } catch {
+          // 사람이 쓴 글 사이의 중괄호일 수 있다. 조용히 넘긴다.
+        }
+        start = -1
+      }
+    }
+  }
+  return out
+}
+
+async function readInput(paths) {
+  if (paths.length > 0) {
+    const texts = await Promise.all(paths.map((p) => readFile(p, 'utf8')))
+    return texts.join('\n')
+  }
+  const chunks = []
+  for await (const chunk of process.stdin) chunks.push(chunk)
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+const text = await readInput(process.argv.slice(2))
+const payloads = extractPayloads(text)
+
+if (payloads.length === 0) {
+  console.error('결과 꾸러미를 못 찾았다. 빌드의 "결과 복사" 가 만든 JSON 을 넣어라.')
+  console.error('  npm run gate -- results/*.json')
+  console.error('  cat payloads.txt | npm run gate')
+  process.exit(2)
+}
+
+const { aggregate, gateVerdict, overall, MIN_TESTERS } =
+  await import('../src/telemetry/aggregate.ts')
+const { CAUSE_LABELS } = await import('../src/telemetry/report.ts')
+
+const agg = aggregate(payloads)
+const lines = gateVerdict(agg)
+const verdict = overall(lines)
+
+console.log('')
+console.log(`  M1 게이트 — ${COLOR[verdict]}${MARK[verdict]}${RESET}   (테스터 ${agg.testers}명 / 최소 ${MIN_TESTERS}명)`)
+if (agg.duplicatesDropped > 0) {
+  console.log(`  같은 사람이 두 번 낸 것 ${agg.duplicatesDropped}건은 걸렀다.`)
+}
+console.log('')
+
+for (const line of lines) {
+  const mark = `${COLOR[line.verdict]}${pad(MARK[line.verdict], 10)}${RESET}`
+  console.log(`  ${mark} ${pad(line.label, 26)} ${line.value}`)
+  console.log(`  ${' '.repeat(10)} ${' '.repeat(26)} \x1b[90m목표 ${line.target}${RESET}`)
+}
+
+if (agg.hotspots.length > 0) {
+  console.log('')
+  console.log('  사망 구간 (타일)  — 겹치는 곳이 판독 불가 구간이다')
+  for (const [tx, count] of agg.hotspots.slice(0, 6)) {
+    console.log(`    ${String(tx).padStart(4)}~${String(tx + 7).padEnd(4)} ${'█'.repeat(Math.min(30, count))} ${count}`)
+  }
+}
+
+const causes = Object.entries(agg.causes).sort((a, b) => b[1] - a[1])
+if (causes.length > 0) {
+  console.log('')
+  console.log('  사인')
+  for (const [cause, count] of causes) {
+    console.log(`    ${pad(CAUSE_LABELS[cause] ?? cause, 10)} ${count}`)
+  }
+}
+
+console.log('')
+if (verdict === 'fail') {
+  console.log('  \x1b[31m미달 항목이 있다.\x1b[0m prompts/m1-gate.md "재시도율이 낮을 때" 를 먼저 본다 —')
+  console.log('  난이도를 낮추기 전에 원인을 분리하라고 적혀 있다.')
+} else if (verdict === 'unknown') {
+  console.log('  \x1b[90m표본이 모자란다. 통과로 읽지 마라.\x1b[0m')
+} else {
+  console.log('  \x1b[32m통과. M2 로 넘어가되 각 스테이지마다 다시 잰다.\x1b[0m')
+}
+console.log('')

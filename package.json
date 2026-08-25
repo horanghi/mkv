@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "deploy": "vercel deploy --prod",
-    "size": "node scripts/check-size.mjs"
+    "size": "node scripts/check-size.mjs",
+    "gate": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/gate-report.mjs"
   },
   "engines": {
     "node": ">=20.19"
