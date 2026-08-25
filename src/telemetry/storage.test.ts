@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_FRAMES, WARMUP_FRAMES, pushFrame } from './frames.ts'
-import { NEW_SESSION, SESSION_VERSION, answerSurvey, noteClear, noteDeath } from './session.ts'
+import {
+  NEW_SESSION, SESSION_VERSION, answerSurvey, closePending, noteClear, noteControlBack,
+  noteDeath, noteInput, observe, retryRate, withId,
+} from './session.ts'
 import { STORAGE_KEY, clear, load, parseSession, save, type KeyValueStore } from './storage.ts'
 
 /** 메모리 저장소. 실패를 흉내 낼 수 있다. */
@@ -50,6 +53,16 @@ describe('세션 보존', () => {
   it('버전이 다르면 버린다 — 섞으면 지표가 거짓이 된다', () => {
     const store = memoryStore()
     store.data.set(STORAGE_KEY, JSON.stringify({ ...NEW_SESSION, version: 999, clears: 7 }))
+
+    expect(load(store)).toEqual(NEW_SESSION)
+  })
+
+  it('판정 규칙이 바뀐 v1 기록은 버린다 — 같은 자리에 다른 뜻의 숫자가 들어 있다', () => {
+    const store = memoryStore()
+    store.data.set(STORAGE_KEY, JSON.stringify({
+      version: 1, id: 'old', clears: 3,
+      deaths: [{ x: 0, cause: 'ghoul', atMs: 0, controlBackMs: 1500, retried: false }],
+    }))
 
     expect(load(store)).toEqual(NEW_SESSION)
   })
@@ -140,3 +153,59 @@ function pushFrames(count: number): typeof EMPTY_FRAMES {
   for (let i = 0; i < WARMUP_FRAMES + count; i += 1) stats = pushFrame(stats, 16)
   return stats
 }
+
+describe('탭을 닫았다 열어도 이어진다', () => {
+  /** 실제 흐름: 저장 → 새 방문에서 읽기 → 이어서 플레이. */
+  it('시도 횟수가 방문을 넘어 이어진다 — 한 번에 끝내지 않는 사람에게도 성립해야 한다', () => {
+    const store = memoryStore()
+
+    // 첫 방문 — 세 번 죽고 탭을 닫는다
+    let first = withId(NEW_SESSION, 'tester-1')
+    for (let i = 0; i < 3; i += 1) {
+      const at = i * 20000
+      first = noteInput(noteControlBack(noteDeath(first, 100, 'ghoul', at), at + 1500), at + 1700)
+    }
+    first = closePending(first, 60000)
+    expect(save(store, first)).toBe(true)
+
+    // 두 번째 방문 — 읽어서 이어 간다
+    let second = load(store)
+    expect(second.deaths).toHaveLength(3)
+    expect(second.id).toBe('tester-1')
+    expect(second.attemptsToFirstClear).toBeNull()
+
+    // 두 번 더 죽고 클리어
+    for (let i = 0; i < 2; i += 1) {
+      const at = 70000 + i * 20000
+      second = noteInput(noteControlBack(noteDeath(second, 100, 'pit', at), at + 1500), at + 1700)
+    }
+    second = noteClear(second, 120000)
+
+    // 다섯 번 죽고 여섯 번째에 깼다
+    expect(second.deaths).toHaveLength(5)
+    expect(second.attemptsToFirstClear).toBe(6)
+    expect(second.msToFirstClear).toBe(120000)
+  })
+
+  it('재시도 판정도 방문을 넘어 보존된다', () => {
+    const store = memoryStore()
+    let s = withId(NEW_SESSION, 'tester-2')
+    s = noteInput(noteControlBack(noteDeath(s, 0, 'ghoul', 0), 1500), 1700)   // 재시도
+    s = noteControlBack(noteDeath(s, 0, 'pit', 20000), 21500)
+    s = observe(s, 21500 + 4000)                                              // 이탈
+    save(store, s)
+
+    const restored = load(store)
+    expect(restored.deaths.map((d) => d.retried)).toEqual([true, false])
+    expect(retryRate(restored)).toBe(0.5)
+  })
+
+  it('한 사람이 두 번 붙여넣어도 같은 식별자로 걸러진다', () => {
+    const store = memoryStore()
+    save(store, withId(NEW_SESSION, 'tester-3'))
+
+    expect(load(store).id).toBe('tester-3')
+    // 새 방문에서 새 식별자를 주려 해도 기존 것이 이긴다
+    expect(withId(load(store), 'tester-4').id).toBe('tester-3')
+  })
+})

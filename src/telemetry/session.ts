@@ -13,8 +13,16 @@ import { EMPTY_FRAMES, type FrameStats } from './frames.ts'
  * → prompts/m1-gate.md
  */
 
-/** 저장 형식 버전. 항목이 바뀌면 올린다 — 낡은 기록은 버린다. */
-export const SESSION_VERSION = 1
+/**
+ * 저장 형식 버전. 항목이 바뀌거나 **판정 규칙이 바뀌면** 올린다 — 낡은 기록은 버린다.
+ *
+ * 항목이 그대로여도 재는 방식이 바뀌면 섞을 수 없다. 같은 자리에 다른 뜻의
+ * 숫자가 들어 있기 때문이다.
+ *
+ * - v1 → v2: 재시도 판정을 고쳤다. 부활하자마자 다시 죽는 경우가 이탈로
+ *   세어지고 있었으므로, v1 기록의 `retried` 는 재시도율을 낮게 만든다.
+ */
+export const SESSION_VERSION = 2
 
 /**
  * 조작이 돌아온 뒤 이 시간 안에 입력이 들어오면 "즉시 재시도"로 본다.
