@@ -40,32 +40,6 @@ function pad(text, width) {
   return text + ' '.repeat(Math.max(0, width - cells(text)))
 }
 
-/** 아무 텍스트에서나 JSON 객체를 긁어낸다. 메신저에서 붙여넣은 그대로도 받는다. */
-function extractPayloads(text) {
-  const out = []
-  let depth = 0
-  let start = -1
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]
-    if (ch === '{') {
-      if (depth === 0) start = i
-      depth += 1
-    } else if (ch === '}') {
-      depth -= 1
-      if (depth === 0 && start >= 0) {
-        try {
-          const parsed = JSON.parse(text.slice(start, i + 1))
-          if (typeof parsed === 'object' && parsed !== null && 'fps' in parsed) out.push(parsed)
-        } catch {
-          // 사람이 쓴 글 사이의 중괄호일 수 있다. 조용히 넘긴다.
-        }
-        start = -1
-      }
-    }
-  }
-  return out
-}
-
 async function readInput(paths) {
   if (paths.length > 0) {
     const texts = await Promise.all(paths.map((p) => readFile(p, 'utf8')))
@@ -77,10 +51,13 @@ async function readInput(paths) {
 }
 
 const text = await readInput(process.argv.slice(2))
-const payloads = extractPayloads(text)
+
+const { extractPayloads } = await import('../src/telemetry/parse.ts')
+const { payloads, broken } = extractPayloads(text)
 
 if (payloads.length === 0) {
   console.error('결과 꾸러미를 못 찾았다. 빌드의 "결과 복사" 가 만든 JSON 을 넣어라.')
+  if (broken > 0) console.error(`(꾸러미처럼 보이지만 읽지 못한 것이 ${broken}건 있다.)`)
   console.error('  npm run gate -- results/*.json')
   console.error('  cat payloads.txt | npm run gate')
   process.exit(2)
@@ -100,6 +77,10 @@ console.log('')
 console.log(`  M1 게이트 — ${COLOR[verdict]}${MARK[verdict]}${RESET}   (${gateName} · 테스터 ${agg.testers}명 / 최소 ${MIN_TESTERS}명)`)
 if (agg.duplicatesDropped > 0) {
   console.log(`  같은 사람이 두 번 낸 것 ${agg.duplicatesDropped}건은 걸렀다.`)
+}
+if (broken > 0) {
+  console.log(`  \x1b[31m읽지 못한 꾸러미 ${broken}건.\x1b[0m 붙여넣다가 잘렸을 수 있다 —`)
+  console.log(`  \x1b[31m그 사람에게 다시 받아라. 모르고 넘어가면 표본이 그만큼 준다.\x1b[0m`)
 }
 if (agg.staleDropped > 0) {
   const versions = agg.stale.map(([v, n]) => `v${v} ${n}명`).join(', ')
