@@ -28,6 +28,12 @@ import { BloomLayer } from './render/postfx/bloomLayer.ts'
 import { LightLayer } from './render/postfx/lightLayer.ts'
 import { ScreenFilter } from './render/postfx/screenFilter.ts'
 import { SpriteSheet, matrixToTexture } from './render/spriteTexture.ts'
+import { HudRenderer } from './render/hudRenderer.ts'
+import { Sfx } from './core/sfx.ts'
+import {
+  DUCK, INITIAL_MUSIC, duckMusic, gainsOf, silence, stepMusic, type MusicState,
+} from './core/audio.ts'
+import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
 
 /**
  * 부트스트랩과 렌더.
@@ -99,6 +105,18 @@ lancel.anchor.set(0.5, 1)
 stageRoot.addChild(lancel)
 
 const breakFx = new BreakFx(stageRoot, fxLayer)
+
+/**
+ * HUD 는 **화면 마감 필터 바깥**에 둔다.
+ *
+ * 비네트가 가장자리를 어둡게 하는데 HUD 는 위쪽 가장자리에 붙어 있다.
+ * 필터 안에 두면 정보가 어두워지고, 그레인까지 얹혀 지저분해진다.
+ * 카메라·셰이크와도 무관해야 한다 — 화면에 고정이다.
+ */
+const hudLayer = new Container()
+app.stage.addChild(hudLayer)
+const hudRenderer = new HudRenderer(hudLayer)
+const sfx = new Sfx()
 const director = new BreakDirector(20260825)
 
 const relicGlow = new Sprite(Texture.WHITE)
@@ -117,11 +135,21 @@ let quality: QualityState = createQuality('high')
 let aberration = NO_ABERRATION
 let deathFlesh: readonly string[] | null = null
 let showDebugBoxes = DEV
+let hud: HudState = INITIAL_HUD
+let music: MusicState = INITIAL_MUSIC
+let score = 0
+let elapsedTicks = 0
+let bossSeen = false
 
 greybox.drawGrid(world.map)
 
 function reset(): void {
   world = createWorld(STAGE_1, balance)
+  hud = INITIAL_HUD
+  music = INITIAL_MUSIC
+  score = 0
+  elapsedTicks = 0
+  bossSeen = false
   director.reset()
   deathFlesh = null
   aberration = NO_ABERRATION
@@ -174,7 +202,7 @@ app.ticker.add(() => {
   const logicStart = performance.now()
   for (let i = 0; i < stepped.ticks; i += 1) {
     input = advanceInput(input, pendingFrame)
-    if (input.held !== 0) hint.dismiss()
+    if (input.held !== 0) { hint.dismiss(); sfx.unlock() }
     if (isDown(input.pressed, 'restart')) { reset(); break }
 
     const armorBefore = spriteStateOf(world.vitals)
@@ -182,11 +210,28 @@ app.ticker.add(() => {
     world = result.world
     input = result.input
 
+    elapsedTicks += 1
+    score += result.events.enemiesKilled * 200 + result.events.bossHit * 3
+
     if (result.events.armorBroke || result.events.died) {
       startBreak(armorBefore, result.events.died)
+      sfx.play(result.events.died ? 'death' : 'armorBreak')
+      music = duckMusic(music, result.events.died ? DUCK.death : DUCK.armorBreak)
     }
     if (result.events.quake) {
       aberration = triggerAberration(aberration, 'sigil')
+      sfx.play('quake')
+    }
+    if (result.events.fired) sfx.play('throw')
+    if (result.events.landed) sfx.play('land')
+    if (world.player.jumped) sfx.play('jump')
+    if (result.events.enemiesKilled > 0) sfx.play('enemyDie')
+    if (result.events.bossHit > 0) sfx.play('bossHit')
+
+    // 보스 등장 — 0.3초 무음. 소리가 사라지면 사람은 화면을 본다.
+    if (!bossSeen && world.cairn.awake) {
+      bossSeen = true
+      music = silence(music)
     }
   }
   logicMs = performance.now() - logicStart
@@ -257,6 +302,24 @@ app.ticker.add(() => {
 
   drawLighting(features, now)
 
+  const secondsLeft = balance.player.stageTimeLimitSeconds - elapsedTicks / 60
+  const busy = world.enemies.length > 0 || world.cairn.awake || isInvulnerable(world.vitals)
+  hud = stepHud(hud, {
+    vitals: world.vitals,
+    weaponId: world.weaponId,
+    secondsLeft,
+    score,
+    bossHp: world.cairn.awake && world.cairn.state !== 'dead' ? world.cairn.hp / 300 : null,
+    busy,
+  }, frameMs)
+  hudRenderer.draw(hud, now)
+
+  music = stepMusic(music, {
+    armor: spriteStateOf(world.vitals),
+    secondsLeft,
+  }, frameMs)
+  sfx.setVolume(0.6 * gainsOf(music).rhythm)
+
   overlay.render(metricsOf(frameMs))
 })
 
@@ -295,12 +358,6 @@ function drawBoss(): void {
 
   const slam = slamBox(cairn)
   if (slam) g.rect(Math.round(slam.x), Math.round(slam.y), slam.width, slam.height).fill(0xe23e4e)
-
-  // HP 바 — 보스만 예외적으로 표시한다. 잡몹은 스프라이트가 곧 체력이다.
-  const ratio = cairn.hp / 300
-  g.rect(Math.round(world.camera.x) + 60, Math.round(world.camera.y) + 12, 360, 4).fill(0x241c2e)
-  g.rect(Math.round(world.camera.x) + 60, Math.round(world.camera.y) + 12, Math.round(360 * ratio), 4)
-    .fill(0xc23b4a)
 }
 
 function drawLighting(features: ReturnType<typeof featuresFor>, now: number): void {

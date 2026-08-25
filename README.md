@@ -56,7 +56,9 @@ src/entities/   플레이어 · 적 · 보스 · 투사체
 src/render/     레이어, 광원, 포스트FX, 디버그
 src/game/       게임 상태, 스테이지, 체크포인트
 src/ui/         HUD, 메뉴
-src/data/       밸런스 JSON + 파서
+src/fx/         연출 로직 (타임라인 · 파편 · 광원 · 품질)
+src/sprite/     도트 매트릭스 · 클립
+src/data/       밸런스 JSON · 스테이지
 ```
 
 ## 수치는 코드에 쓰지 않는다
