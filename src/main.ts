@@ -6,6 +6,10 @@ import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/inp
 import { KeyboardSource } from './core/keyboard.ts'
 import { INITIAL_LOOP, advance, requestHitstop, type LoopState } from './core/loop.ts'
 import { computeViewport } from './core/viewport.ts'
+import {
+  REALTIME, consume as consumeTime, cycleScale, labelOf, requestStep, toggleStepping,
+  type TimeControl,
+} from './core/timeControl.ts'
 import { loadBalance } from './data/load.ts'
 import { STAGE_1 } from './data/stages/stage1.ts'
 import { frameFor } from './entities/player/animation.ts'
@@ -67,6 +71,7 @@ import { GameOverScreen } from './ui/menus/gameOverScreen.ts'
  *
  *   ← →  이동   Z 점프   X 던지기   ↓ 웅크리기   R 처음부터
  *   F1 오버레이 · F2 궤도/히트박스 · F3 성유물 · F4 피격 · F5 화질 · F6 게이트 판정
+ *   F7 슬로우모션 순환 · F8 프레임 한 칸 (Shift+F8 로 스텝 모드) — 개발 빌드만
  */
 
 TextureSource.defaultOptions.scaleMode = 'nearest'
@@ -121,6 +126,15 @@ await app.init({
 
 host.style.position = 'relative'
 host.appendChild(app.canvas)
+
+/** 슬로우모션·프레임 스텝 표시. 평소에는 비어 있다. */
+const timeLabel = document.createElement('div')
+timeLabel.style.cssText = [
+  'position:absolute', 'left:50%', 'top:8px', 'transform:translateX(-50%)',
+  'color:#F0C04A', 'font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace',
+  'letter-spacing:.1em', 'pointer-events:none', 'z-index:11',
+].join(';')
+host.appendChild(timeLabel)
 
 const overlay = new DebugOverlay(host)
 overlay.setVisible(DEV)
@@ -276,6 +290,13 @@ let pauseState: PauseState = RUNNING
 let prevPauseDown = false
 /** 지금 배경에 블러가 걸려 있는가. 필터 교체를 최소화한다. */
 let blurred = false
+/**
+ * 슬로우모션 · 프레임 스텝. → docs/10 10.10
+ *
+ * 로직에 손대지 않고 루프에 넣는 시간만 바꾼다. 그래서 결정론이 유지되고,
+ * 프레임 스텝으로 본 것이 실제로 일어나는 것과 같다.
+ */
+let timeControl: TimeControl = REALTIME
 let results: Results | null = null
 let resultsElapsedMs = 0
 
@@ -372,9 +393,13 @@ app.ticker.add(() => {
   let respawnedThisFrame = false
   let causeThisFrame: DamageCause | null = null
 
+  // 슬로우모션·프레임 스텝은 여기서만 적용된다. 로직은 자기가 느려진 줄 모른다.
+  const slice = consumeTime(timeControl, frameMs)
+  timeControl = slice.control
+
   // 멈춰 있으면 시간을 누산하지 않는다. 누산하면 풀리는 순간 밀린 틱이 쏟아진다.
   const stepped = playable
-    ? advance(loop, frameMs)
+    ? advance(loop, slice.frameMs)
     : { state: loop, ticks: 0, droppedTicks: 0, alpha: 0, hitstopped: false }
   loop = stepped.state
   droppedTicks = stepped.droppedTicks
@@ -452,7 +477,7 @@ app.ticker.add(() => {
   }
 
   // --- 연출 (히트스톱 중에도 흐른다. 일시정지에는 멈춘다) -------------------
-  director.advance(playable ? frameMs : 0)
+  director.advance(playable ? slice.frameMs : 0)
   const shake = director.cameraOffset
   shakeRoot.position.set(shake.x, shake.y)
   stageRoot.position.set(-Math.round(world.camera.x), -Math.round(world.camera.y))
@@ -530,6 +555,7 @@ app.ticker.add(() => {
   bgm.update(music)
 
   overlay.render(metricsOf(frameMs))
+  timeLabel.textContent = labelOf(timeControl) ?? ''
 
   // --- 게임 오버 -----------------------------------------------------------
   // 잔기가 남아 있으면 여기까지 오지 않는다. 일반 사망에는 아무것도 끼어들지 않는다.
@@ -762,6 +788,13 @@ window.addEventListener('keydown', (e) => {
     }
   }
   if (e.key === 'F6') { e.preventDefault(); playtest.toggleGatePanel() }
+  // 연출 검수 도구. 개발 빌드에서만 — 테스터가 실수로 눌러 시간이 느려지면
+  // 프레임 계측이 통째로 거짓이 된다. → docs/10 10.10
+  if (DEV && e.key === 'F7') { e.preventDefault(); timeControl = cycleScale(timeControl) }
+  if (DEV && e.key === 'F8') {
+    e.preventDefault()
+    timeControl = e.shiftKey ? toggleStepping(timeControl) : requestStep(timeControl)
+  }
   if (e.key === 'F5') {
     e.preventDefault()
     const next = QUALITY_TIERS[(QUALITY_TIERS.indexOf(quality.tier) + 1) % QUALITY_TIERS.length]
