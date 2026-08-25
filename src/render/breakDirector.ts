@@ -145,14 +145,34 @@ export class BreakDirector {
   }
 
   /**
+   * 사망 중 시간 배율. 1 이면 실시간, 0.3 이면 슬로우모션이다.
+   *
+   * docs/06 사망 연출: t=250ms 부터 1초간 0.3배속. 사망 중에는 적도 투사체도
+   * 멈추므로(`stepDead` 가 조기 반환한다) 화면에서 움직이는 것은 파편뿐이다 —
+   * 그래서 파편의 물리에만 건다.
+   *
+   * **부활 카운트에는 걸지 않는다.** 사망 → 조작 3초는 비협상 수치인데,
+   * 로직 전체를 늦추면 그 예산을 0.7초 먹는다. 늦춰야 하는 것은 보이는 것이다.
+   */
+  get deathTimeScale(): number {
+    if (this.deathSeq.done) return 1
+    const { skeletonizeMs, slowmo } = DEATH_TIMING
+    const since = this.deathSeq.elapsedMs - skeletonizeMs
+    return since >= 0 && since < slowmo.durationMs ? slowmo.scale : 1
+  }
+
+  /**
    * 사망 중 화면 채도. 1 이면 그대로, 0 이면 흑백이다.
    *
    * docs/06 사망 연출: t=250ms 부터 채도가 0 으로 내려간다. 슬로우모션과
    * 같은 구간을 쓴다 — 느려지는 것과 색이 빠지는 것이 한 동작으로 읽혀야 한다.
-   * 페이드가 시작되는 1250ms 에 0 에 닿는다.
+   * 페이드가 시작되는 1250ms 에 0 에 닿고, 그 뒤로는 0 을 유지한다.
+   * **살아 있을 때는 부르지 않는다** — 부르는 쪽이 `dead` 로 감싼다.
    */
   get deathSaturation(): number {
-    if (this.deathSeq.done) return 1
+    // 끝났으면 0 을 유지한다. 부활 전까지 색이 돌아오면 페이드 직전에 한 번
+    // 튄다 — 부르는 쪽이 "죽어 있는 동안" 으로 감싸므로 여기서는 붙잡는다.
+    if (this.deathSeq.done) return 0
     return 1 - progressAt(
       this.deathSeq,
       DEATH_TIMING.skeletonizeMs,

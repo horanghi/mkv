@@ -60,6 +60,7 @@ import {
 } from './core/audio.ts'
 import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
 import { KeyboardNotice } from './ui/menus/keyboardNotice.ts'
+import { NO_FADE, stepFade, type Fade } from './fx/fade.ts'
 import { Playtest } from './ui/report/playtest.ts'
 import { PauseMenu } from './ui/menus/pauseMenu.ts'
 import { ResultsScreen } from './ui/menus/resultsScreen.ts'
@@ -259,6 +260,16 @@ const breakFx = new BreakFx(stageRoot, fxLayer)
 const hudLayer = new Container()
 app.stage.addChild(hudLayer)
 const hudRenderer = new HudRenderer(hudLayer)
+
+/**
+ * 사망 → 부활 페이드. HUD 보다 위에 둔다 — 화면 전체가 한 번에 넘어가야
+ * 카메라가 체크포인트로 튀는 것이 가려진다. → docs/06 사망 연출
+ */
+const fadeLayer = new Graphics()
+fadeLayer.rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
+fadeLayer.alpha = 0
+app.stage.addChild(fadeLayer)
+let fade: Fade = NO_FADE
 const sfx = new Sfx()
 /**
  * BGM.
@@ -392,8 +403,13 @@ app.ticker.add(() => {
   const menuOpen = isMenuOpen(pauseState)
   pauseMenu.render(menuOpen, countdownNumber(pauseState), difficulty)
   // 사망 중에는 색이 빠진다. 값은 매 프레임 바뀌지만 필터는 그대로 둔다.
-  const saturation = director.deathSaturation
+  // 살아 있으면 무조건 제색이다 — 죽어 있는 동안만 감독의 값을 쓴다.
+  const saturation = world.vitals.dead ? director.deathSaturation : 1
   const draining = saturation < 1
+
+  // 연출이 끝난 뒤부터 부활까지 덮는다. 그 사이에 카메라가 옮겨 간다.
+  fade = stepFade(fade, world.vitals.dead && director.deathSaturation === 0, frameMs)
+  fadeLayer.alpha = fade.alpha
   if (draining) deathDesaturate.saturate(-(1 - saturation), false)
 
   // 필터 배열은 바뀔 때만 갈아 끼운다. 매 프레임 새로 넣으면 파이프라인을 다시 만든다.
@@ -483,7 +499,12 @@ app.ticker.add(() => {
   }
   logicMs = performance.now() - logicStart
   if (stepped.ticks > 0) pendingFrame = 0
-  director.stepShards(balance.player.gravityFalling, (world.map.height - 1) * 16, TICK_SECONDS)
+  // 사망 중에는 파편이 느리게 흩날린다 — 화면에서 움직이는 게 그것뿐이다.
+  director.stepShards(
+    balance.player.gravityFalling,
+    (world.map.height - 1) * 16,
+    TICK_SECONDS * director.deathTimeScale,
+  )
 
   ticksInWindow += stepped.ticks
   framesInWindow += 1
