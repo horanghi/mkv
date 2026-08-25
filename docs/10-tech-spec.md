@@ -75,6 +75,7 @@ src/
     lighting.ts   # 2D 동적 광원
     postfx/       # 셰이더 스택
     particles.ts
+    parallax.ts       # 배경 8층 중 1~4 · 7 그리기
     spriteTexture.ts  # 매트릭스 → PixiJS 텍스처 (캐시)
     breakFx.ts        # 파편 · 섬광 링 · 화면 반전 그리기
     breakDirector.ts  # 연출 진행 상태
@@ -87,6 +88,10 @@ src/
     stage.ts      # 스테이지 데이터 · Tiled 로더 · 체크포인트
     camera.ts     # 데드존 추적 · 선행 · 낙하 확대
     score.ts
+  scenery/        # 배경 생성 (순수 — 렌더러를 모른다)
+    silhouette.ts # 능선 — 시드에서 만들고 이음매를 맞춘다
+    props.ts      # 묘비·나무 배치
+    stage1.ts     # S1 층 정의 · 팔레트 · 앰비언트
   telemetry/      # 플레이테스트 계측 (순수 — 브라우저를 모른다)
     session.ts    # 사망·재시도·시도 횟수
     frames.ts     # 프레임 타임 히스토그램
@@ -289,6 +294,7 @@ function updateBody(body: Body, dt: number): Body {
 | `fx/` | 85% — 타이밍과 물리는 검증 대상, 그리기는 제외 |
 | `render/` | 제외 (시각 검증으로 대체) |
 | `telemetry/` | 95% — 게이트 판정의 근거라 틀리면 프로젝트가 잘못된 방향으로 간다 |
+| `scenery/` | 95% (분기 70%) — 남은 분기는 `noUncheckedIndexedAccess` 가 강제하는 도달 불가 가드다 |
 | `ui/` | 제외 (시각 검증으로 대체) |
 
 ---

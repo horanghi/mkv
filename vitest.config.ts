@@ -22,6 +22,10 @@ export default defineConfig({
         'src/entities/**': { lines: 85, functions: 85, branches: 85, statements: 85 },
         'src/game/**': { lines: 85, functions: 85, branches: 85, statements: 85 },
         'src/telemetry/**': { lines: 95, functions: 95, branches: 95, statements: 95 },
+        // 배경 생성기. 분기 임계치만 낮은 이유는 남은 분기가 전부
+        // noUncheckedIndexedAccess 가 강제하는 `?? 기본값` 가드이기 때문이다.
+        // 인덱스가 항상 범위 안이라 실행되지 않는다.
+        'src/scenery/**': { lines: 95, functions: 95, branches: 70, statements: 95 },
       },
     },
   },

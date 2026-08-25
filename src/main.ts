@@ -27,6 +27,8 @@ import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
 import { BloomLayer } from './render/postfx/bloomLayer.ts'
 import { LightLayer } from './render/postfx/lightLayer.ts'
 import { ScreenFilter } from './render/postfx/screenFilter.ts'
+import { ParallaxRenderer } from './render/parallax.ts'
+import { S1_PALETTE } from './scenery/stage1.ts'
 import { SpriteSheet, matrixToTexture } from './render/spriteTexture.ts'
 import { HudRenderer } from './render/hudRenderer.ts'
 import { Sfx } from './core/sfx.ts'
@@ -88,7 +90,11 @@ const keyboard = new KeyboardSource(window)
 const playtest = new Playtest(host, keyboard)
 
 // --- 층 구성 -------------------------------------------------------------------
-const stageRoot = new Container()   // 카메라가 여기를 움직인다
+// docs/06 6.2 의 8층. 배경(1~4)과 전경(7)은 카메라를 **부분적으로만** 따르므로
+// stageRoot 안에 둘 수 없다. 셰이크는 같이 받아야 하니 shakeRoot 의 형제로 둔다.
+const backdropRoot = new Container()  // 1~4 스카이 · 원경 · 중경 · 근경
+const stageRoot = new Container()     // 5~6 게임플레이 타일 · 엔티티 — 카메라가 여기를 움직인다
+const foregroundRoot = new Container() // 7 안개 · 오클루전
 const shakeRoot = new Container()   // 셰이크가 여기를 흔든다
 const fxLayer = new Container()
 const lightLayer = new LightLayer()
@@ -96,11 +102,12 @@ const bloomLayer = new BloomLayer()
 const screenFilter = new ScreenFilter()
 const worldRoot = new Container()
 
-shakeRoot.addChild(stageRoot)
+shakeRoot.addChild(backdropRoot, stageRoot, foregroundRoot)
 worldRoot.addChild(shakeRoot, lightLayer.output, bloomLayer.output, fxLayer)
 worldRoot.filters = [screenFilter]
 app.stage.addChild(worldRoot)
 
+const parallax = new ParallaxRenderer(backdropRoot, foregroundRoot, bloomLayer.emissive)
 const greybox = new GreyboxRenderer(stageRoot)
 const enemyGfx = new Graphics()
 const bossGfx = new Graphics()
@@ -152,6 +159,7 @@ let elapsedTicks = 0
 let bossSeen = false
 
 greybox.drawGrid(world.map)
+greybox.setGridVisible(showDebugBoxes)
 
 function reset(): void {
   world = createWorld(STAGE_1, balance)
@@ -276,6 +284,9 @@ app.ticker.add(() => {
   const shake = director.cameraOffset
   shakeRoot.position.set(shake.x, shake.y)
   stageRoot.position.set(-Math.round(world.camera.x), -Math.round(world.camera.y))
+  // 발광 컨테이너의 내용물은 월드 좌표다. 씬에 그리지 않고 렌더 타겟에 바로
+  // 굽기 때문에 카메라 이동을 여기서 직접 먹여야 위치가 맞는다.
+  bloomLayer.emissive.position.copyFrom(stageRoot.position)
 
   const change = observeFps(quality, fps, frameMs)
   quality = change.state
@@ -288,6 +299,7 @@ app.ticker.add(() => {
   screenFilter.time = now / 1000
 
   // --- 그리기 ---------------------------------------------------------------
+  parallax.update(world.camera.x, world.camera.y, now / 1000)
   greybox.drawTerrain(world.map, world.crumble)
   greybox.drawProjectiles(world.shots.projectiles)
   greybox.drawBodies(showDebugBoxes ? [world.player.body] : [])
@@ -426,7 +438,12 @@ function drawLighting(features: ReturnType<typeof featuresFor>, now: number): vo
 
   lightLayer.setEnabled(features.dynamicLights)
   if (features.dynamicLights) {
-    lightLayer.update(app.renderer, limitLights(lights, features.maxLights, { x: 0, y: 0 }), now)
+    lightLayer.update(
+      app.renderer,
+      limitLights(lights, features.maxLights, { x: 0, y: 0 }),
+      now,
+      S1_PALETTE.ambient,
+    )
   }
 
   relicGlow.visible = emitsLight(world.vitals)
@@ -481,7 +498,11 @@ window.addEventListener('resize', applyViewport)
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'F1') { e.preventDefault(); overlay.toggle() }
-  if (e.key === 'F2') { e.preventDefault(); showDebugBoxes = !showDebugBoxes }
+  if (e.key === 'F2') {
+    e.preventDefault()
+    showDebugBoxes = !showDebugBoxes
+    greybox.setGridVisible(showDebugBoxes)
+  }
   if (e.key === 'F3') {
     e.preventDefault()
     world = { ...world, vitals: pickUpRelic(world.vitals, 'gold', balance.player) }

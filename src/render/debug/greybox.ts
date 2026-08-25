@@ -3,6 +3,7 @@ import type { JumpArc } from '../../entities/player/arc.ts'
 import type { Projectile } from '../../entities/projectiles/projectile.ts'
 import { boxOf, type Body } from '../../physics/body.ts'
 import { warningProgress, type CrumbleState } from '../../physics/crumble.ts'
+import { S1_PALETTE } from '../../scenery/stage1.ts'
 import { TILE, tileAt, type Tilemap } from '../../physics/tilemap.ts'
 
 /**
@@ -14,7 +15,11 @@ import { TILE, tileAt, type Tilemap } from '../../physics/tilemap.ts'
 
 const COLOR = {
   grid: 0x241c2e,
-  solid: 0x2a2438,
+  // 밟을 수 있는 타일만 밝다. 배경보다 밝지 않으면 발판으로 읽히지 않는다.
+  // → docs/06-visual-direction.md 6.2
+  solid: S1_PALETTE.ground,
+  /** 윗면 강조. 착지 지점의 경계를 한 줄로 못박는다 */
+  lip: S1_PALETTE.groundLip,
   oneWay: 0x5f6e85,
   crumbling: 0x8a5f14,
   crumblingWarn: 0xe23e4e,
@@ -35,6 +40,11 @@ export class GreyboxRenderer {
 
   constructor(stage: Container) {
     stage.addChild(this.grid, this.terrain, this.arc, this.bodies, this.shots)
+  }
+
+  /** 격자는 디버그용이다. 배경이 들어온 뒤로는 켤 때만 보인다. */
+  setGridVisible(visible: boolean): void {
+    this.grid.visible = visible
   }
 
   /** 격자는 지형과 달리 매 틱 다시 그릴 필요가 없다. */
@@ -61,6 +71,10 @@ export class GreyboxRenderer {
 
         if (kind === TILE.solid) {
           g.rect(x, y, size, size).fill(COLOR.solid)
+          // 위가 비어 있는 타일만 윗면을 밝힌다 — 밟을 수 있는 면이라는 뜻이다.
+          if (tileAt(map, tx, ty - 1) === TILE.empty) {
+            g.rect(x, y, size, 2).fill(COLOR.lip)
+          }
         } else if (kind === TILE.oneWay) {
           // 위에서만 밟힌다는 것이 실루엣으로 읽혀야 한다.
           g.rect(x, y, size, 4).fill(COLOR.oneWay)
