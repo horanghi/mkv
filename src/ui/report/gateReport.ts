@@ -1,3 +1,5 @@
+import { rulesFor } from '../../game/difficulty.ts'
+import { GATE_DIFFICULTY } from '../../telemetry/aggregate.ts'
 import {
   CAUSE_LABELS, buildReport, causeBreakdown, deathHotspots, formatBytes,
   overallVerdict, type Metric, type Verdict,
@@ -67,8 +69,19 @@ export class GateReportPanel {
     const metrics = buildReport({ session, loadBytes })
     const overall = overallVerdict(metrics)
 
+    // 난이도를 같이 적는다. 게이트 난이도(기사) 가 아니면 합산에서 빠지므로,
+    // 판정만 보고 "통과" 로 읽으면 안 된다.
+    const name = rulesFor(session.difficulty).name
+    const offGate = session.difficulty !== GATE_DIFFICULTY
+    const tag = offGate ? `[${name} — ⚠ 합산에서 빠진다]` : `[${name}]`
+
+    // dev 서버는 모듈을 낱개로 준다. 그 숫자를 예산으로 읽으면 헛짚는다.
+    const built = !import.meta.env.DEV
+
     this.root.replaceChildren(
-      heading(`M1 게이트 — ${VERDICT_MARK[overall]}`, VERDICT_COLOR[overall]),
+      heading(
+        `M1 게이트 — ${VERDICT_MARK[overall]}   ${tag}${built ? '' : '   (dev — 용량은 빌드에서 본다)'}`,
+        offGate ? '#D2A24C' : VERDICT_COLOR[overall]),
       ...metrics.map(metricRow),
       divider(),
       heading('사망 구간 (타일)', '#A99C8A'),
