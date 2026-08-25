@@ -21,6 +21,7 @@ Build directive. A browser hardcore 2D platformer in the Ghosts 'n Goblins linea
 3. **Death to playable under 3 seconds.** Miss this and every other decision is void. → 09
 4. **Armor break is the showpiece.** 180ms hitstop, 24 shards from real sprite pixels, flash, aberration, shake. Spend real budget. → 06
 5. **Initial load under 8MB**, lazy per stage. This is why we chose web over Godot. → 10
+   *Enforced at build time — `npm run build` fails over budget (`scripts/check-size.mjs`).*
 6. **Logical res 480×270, integer scale only.** 16px tiles. Tiles snap to grid; particles and shaders do not. → 06
 
 ## Core numbers
