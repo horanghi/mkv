@@ -6,6 +6,7 @@ import {
   withId, type Session,
 } from './session.ts'
 
+
 function played(): Session {
   let s = withId(NEW_SESSION, 'abc12345')
   for (let i = 0; i < 6; i += 1) {
@@ -71,5 +72,40 @@ describe('세션 식별자', () => {
   it('한 번 붙으면 바뀌지 않는다', () => {
     const first = withId(NEW_SESSION, 'aaa')
     expect(withId(first, 'bbb').id).toBe('aaa')
+  })
+})
+
+describe('붙여넣기 가능한 크기', () => {
+  it('많이 죽어도 메신저에 붙일 만하다', () => {
+    // 지독하게 오래 붙든 테스터: 스테이지 전역에서 50번 사망 + 최대 길이 메모
+    let s = withId(NEW_SESSION, 'abc12345')
+    for (let i = 0; i < 50; i += 1) {
+      const at = i * 20000
+      // 164타일 스테이지 전역에 흩뿌린다 → 사망 구간이 최대로 쪼개진다
+      const x = (i * 53) % (164 * 16)
+      const cause = (['ghoul', 'grimm', 'corvid', 'cairn', 'pit'] as const)[i % 5]
+      s = noteInput(noteControlBack(noteDeath(s, x, cause, at), at + 1500), at + 1700)
+    }
+    s = answerSurvey(noteClear(s, 1_200_000), {
+      deathFxLiked: true, jumpStiff: false, note: 'ㄱ'.repeat(NOTE_LIMIT),
+    })
+
+    const json = toJson(s, 180_000)
+    const payload = toPayload(s, 180_000)
+
+    // 메모를 뺀 본체가 2KB 를 넘으면 붙여넣기가 불안해진다
+    expect(json.length - payload.survey.note.length).toBeLessThan(2000)
+    expect(payload.deaths).toBe(50)
+    expect(JSON.parse(json).hotspots.length).toBeGreaterThan(5)
+  })
+
+  it('사망 구간이 스테이지 폭을 넘어 늘어나지 않는다', () => {
+    const STAGE_PX = 164 * 16
+    let s = NEW_SESSION
+    // 스테이지 안 어디에서든 죽어도, 구간 수는 폭으로 묶인다.
+    for (let i = 0; i < 400; i += 1) s = noteDeath(s, (i * 7) % STAGE_PX, 'pit', i * 1000)
+
+    // 8타일(128px) 단위 → ceil(2624 / 128) = 21 구간
+    expect(toPayload(s, null).hotspots.length).toBeLessThanOrEqual(21)
   })
 })
