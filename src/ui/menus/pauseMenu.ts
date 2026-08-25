@@ -1,3 +1,5 @@
+import { DIFFICULTIES, rulesFor, type Difficulty } from '../../game/difficulty.ts'
+
 /**
  * 일시정지 메뉴.
  *
@@ -12,6 +14,8 @@
 export interface PauseCallbacks {
   readonly onResume: () => void
   readonly onRestart: () => void
+  /** 난이도를 바꾼다. 바꾸면 판이 다시 시작된다 */
+  readonly onDifficulty: (difficulty: Difficulty) => void
 }
 
 const PANEL = [
@@ -45,6 +49,7 @@ const COUNTDOWN = [
 export class PauseMenu {
   private readonly panel: HTMLElement
   private readonly countdown: HTMLElement
+  private readonly difficultyButtons = new Map<Difficulty, HTMLButtonElement>()
 
   constructor(parent: HTMLElement, callbacks: PauseCallbacks) {
     this.panel = document.createElement('div')
@@ -61,6 +66,29 @@ export class PauseMenu {
       button('처음부터', () => callbacks.onRestart()),
     )
 
+    // 난이도. docs/09 9.6 이 설정을 일시정지 메뉴에 두기로 정했다.
+    const difficultyLabel = document.createElement('div')
+    difficultyLabel.textContent = '난이도'
+    difficultyLabel.style.cssText = 'color:#8C8194;font-size:11px;letter-spacing:.2em'
+
+    const difficultyRow = document.createElement('div')
+    difficultyRow.style.cssText = 'display:flex;gap:6px'
+    for (const id of DIFFICULTIES) {
+      const rules = rulesFor(id)
+      const element = button(rules.name, () => callbacks.onDifficulty(id))
+      element.title = `${rules.forWhom} · 잔기 ${rules.lives} · ${rules.stageTimeSeconds / 60}분 · 체크포인트 ${rules.checkpoints}`
+      element.style.flex = '1'
+      element.style.padding = '6px 4px'
+      // 세 글자(성기사)가 줄바꿈되지 않아야 한다
+      element.style.whiteSpace = 'nowrap'
+      this.difficultyButtons.set(id, element)
+      difficultyRow.appendChild(element)
+    }
+
+    const difficultyBlock = document.createElement('div')
+    difficultyBlock.style.cssText = 'display:flex;flex-direction:column;gap:5px;width:260px;align-items:center'
+    difficultyBlock.append(difficultyLabel, difficultyRow)
+
     const help = document.createElement('div')
     help.style.cssText = 'color:#8C8194;white-space:pre;text-align:center;font-size:11px;line-height:1.9'
     help.textContent = [
@@ -69,7 +97,7 @@ export class PauseMenu {
       'Esc  일시정지        R   처음부터',
     ].join('\n')
 
-    this.panel.append(title, buttons, help)
+    this.panel.append(title, buttons, difficultyBlock, help)
     parent.appendChild(this.panel)
 
     this.countdown = document.createElement('div')
@@ -78,10 +106,16 @@ export class PauseMenu {
   }
 
   /** 매 프레임. 메뉴와 카운트다운은 동시에 뜨지 않는다. */
-  render(menuOpen: boolean, countdownNumber: number | null): void {
+  render(menuOpen: boolean, countdownNumber: number | null, difficulty: Difficulty): void {
     this.panel.style.display = menuOpen ? 'flex' : 'none'
     this.countdown.style.display = countdownNumber === null ? 'none' : 'flex'
     if (countdownNumber !== null) this.countdown.textContent = String(countdownNumber)
+
+    for (const [id, element] of this.difficultyButtons) {
+      const chosen = id === difficulty
+      element.style.background = chosen ? '#7A5CA8' : '#241C2E'
+      element.style.color = chosen ? '#FFFFFF' : '#BEB4C6'
+    }
   }
 }
 

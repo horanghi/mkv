@@ -25,6 +25,10 @@ import {
 } from './game/pause.ts'
 import { buildResults, rollingAt, rollingDurationMs, type Results } from './game/results.ts'
 import { createRun, stepRun, type RunStats } from './game/runStats.ts'
+import {
+  DEFAULT_DIFFICULTY, applyDifficulty, applyDifficultyToStage, parseDifficulty,
+  type Difficulty,
+} from './game/difficulty.ts'
 import { partsFor, paletteFor } from './sprite/armor.ts'
 import { currentPose } from './sprite/clip.ts'
 import { pose } from './sprite/pose.ts'
@@ -69,6 +73,17 @@ if (!host) throw new Error('#app 이 없다')
 
 const DEV = import.meta.env.DEV
 
+/** 난이도 설정 저장 키. 다시 들어와도 고른 것이 유지된다. */
+const DIFFICULTY_KEY = 'grimhollow.difficulty'
+
+function loadDifficulty(): Difficulty {
+  try {
+    return parseDifficulty(localStorage.getItem(DIFFICULTY_KEY))
+  } catch {
+    return DEFAULT_DIFFICULTY
+  }
+}
+
 /**
  * UI 타이밍 한 걸음의 상한 (ms).
  *
@@ -76,7 +91,17 @@ const DEV = import.meta.env.DEV
  * 카운트다운·롤링에 먹이면 연출이 통째로 건너뛰어진다.
  */
 const MAX_UI_STEP_MS = 100
-const balance = loadBalance()
+/**
+ * 난이도.
+ *
+ * 관용만 조절한다 — 적 HP·데미지도, 이동·점프 수치도 건드리지 않는다.
+ * 고정 점프 궤도는 비협상 원칙이라 난이도로 흔들면 같은 게임이 아니게 된다.
+ * → docs/08 8.4
+ */
+let difficulty: Difficulty = loadDifficulty()
+const baseBalance = loadBalance()
+let balance = applyDifficulty(baseBalance, difficulty)
+let stage = applyDifficultyToStage(STAGE_1, difficulty)
 
 const app = new Application()
 await app.init({
@@ -114,6 +139,16 @@ const playtest = new Playtest(host, keyboard)
 const pauseMenu = new PauseMenu(host, {
   onResume: () => { pauseState = togglePause(pauseState) },
   onRestart: () => { reset() },
+  onDifficulty: (next) => {
+    if (next === difficulty) return
+    difficulty = next
+    try { localStorage.setItem(DIFFICULTY_KEY, next) } catch { /* 저장 못 해도 계속한다 */ }
+    balance = applyDifficulty(baseBalance, difficulty)
+    stage = applyDifficultyToStage(STAGE_1, difficulty)
+    // 난이도가 바뀌면 판을 다시 시작한다. 도중에 체크포인트 수가 바뀌면
+    // 이미 지나온 구간의 규칙이 달라져 기록이 뒤섞인다.
+    reset()
+  },
 })
 
 const resultsScreen = new ResultsScreen(host, {
@@ -206,7 +241,7 @@ coreGlow.visible = false
 bloomLayer.emissive.addChild(relicGlow, coreGlow)
 
 // --- 상태 -----------------------------------------------------------------------
-let world: World = createWorld(STAGE_1, balance)
+let world: World = createWorld(stage, balance)
 /**
  * 화질 기본값은 **보통**이다. → docs/06 6.9
  *
@@ -222,7 +257,7 @@ let hud: HudState = INITIAL_HUD
 let music: MusicState = INITIAL_MUSIC
 let elapsedTicks = 0
 let bossSeen = false
-let run: RunStats = createRun(STAGE_1.sections.length)
+let run: RunStats = createRun(stage.sections.length)
 let pauseState: PauseState = RUNNING
 /** 일시정지 키의 직전 상태. 누른 순간만 잡기 위한 것이다. */
 let prevPauseDown = false
@@ -235,10 +270,10 @@ greybox.drawGrid(world.map)
 greybox.setGridVisible(showDebugBoxes)
 
 function reset(): void {
-  world = createWorld(STAGE_1, balance)
+  world = createWorld(stage, balance)
   hud = INITIAL_HUD
   music = INITIAL_MUSIC
-  run = createRun(STAGE_1.sections.length)
+  run = createRun(stage.sections.length)
   pauseState = RUNNING
   results = null
   resultsElapsedMs = 0
@@ -307,7 +342,7 @@ app.ticker.add(() => {
 
   const playable = isPlayable(pauseState) && !menuBusy
   const menuOpen = isMenuOpen(pauseState)
-  pauseMenu.render(menuOpen, countdownNumber(pauseState))
+  pauseMenu.render(menuOpen, countdownNumber(pauseState), difficulty)
   // 필터 배열은 바뀔 때만 갈아 끼운다. 매 프레임 새로 넣으면 파이프라인을 다시 만든다.
   if (menuOpen !== blurred) {
     blurred = menuOpen
@@ -348,7 +383,7 @@ app.ticker.add(() => {
     elapsedTicks += 1
     run = stepRun(run, {
       events: result.events,
-      sectionIndex: sectionAt(STAGE_1, world.player.body.x),
+      sectionIndex: sectionAt(stage, world.player.body.x),
       armor: spriteStateOf(world.vitals),
     })
 
@@ -480,10 +515,10 @@ app.ticker.add(() => {
   if (world.cleared && results === null) {
     results = buildResults(run, {
       secondsLeft: balance.player.stageTimeLimitSeconds - elapsedTicks / 60,
-      enemyTotal: STAGE_1.enemies.length,
+      enemyTotal: stage.enemies.length,
     })
     resultsElapsedMs = 0
-    resultsScreen.open(STAGE_1.name)
+    resultsScreen.open(stage.name)
   }
   if (results !== null && resultsScreen.isOpen) {
     resultsElapsedMs += Math.min(frameMs, MAX_UI_STEP_MS)
