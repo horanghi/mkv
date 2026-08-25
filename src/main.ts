@@ -1,4 +1,4 @@
-import { Application, Container, Sprite, TextureSource } from 'pixi.js'
+import { Application, Container, Sprite, Texture, TextureSource } from 'pixi.js'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_SECONDS } from './core/config.ts'
 import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/input.ts'
 import { KeyboardSource } from './core/keyboard.ts'
@@ -27,6 +27,7 @@ import { parseTilemap, type Tilemap } from './physics/tilemap.ts'
 import {
   continueGame,
   createVitals,
+  emitsLight,
   fallIntoPit,
   isBlinking,
   isGameOver,
@@ -42,6 +43,12 @@ import {
 import { advanceClip, playClip, startClip, type ClipState } from './sprite/clip.ts'
 import { SpriteSheet, matrixToTexture } from './render/spriteTexture.ts'
 import { BreakFx } from './render/breakFx.ts'
+import { ScreenFilter } from './render/postfx/screenFilter.ts'
+import { LightLayer } from './render/postfx/lightLayer.ts'
+import { BloomLayer } from './render/postfx/bloomLayer.ts'
+import { NO_ABERRATION, pixelOffset, step as stepAberration, trigger as triggerAberration } from './fx/aberration.ts'
+import { RELIC_LIGHT, limitLights, type Light } from './fx/light.ts'
+import { createQuality, featuresFor, observeFps, setManual, QUALITY_TIERS, type QualityState } from './fx/quality.ts'
 import { BreakDirector } from './render/breakDirector.ts'
 import { skeletonizeFrame } from './fx/dissolve.ts'
 import { ARMOR_BREAK_TIMING, DEATH_TIMING } from './fx/sequence.ts'
@@ -77,6 +84,9 @@ await app.init({
   roundPixels: true,
   autoDensity: false,
   resolution: 1,
+  // 커스텀 셰이더를 GLSL 하나로 유지한다. WGSL 을 따로 쓰면 같은 효과를 두 벌
+  // 관리해야 하고, 480x270 에서 WebGPU 의 이점은 측정되지 않는다. M4 에서 재검토.
+  preference: 'webgl',
 })
 
 host.style.position = 'relative'
@@ -133,10 +143,32 @@ const LEVEL: Tilemap = parseTilemap([
 
 const SPAWN = { x: 24, y: 200 }
 
+/**
+ * 스테이지 층 구성. 순서가 곧 합성 순서다.
+ *
+ *   scene       씬 (레이어 1~7) — 카메라 셰이크가 여기 걸린다
+ *   light       광원 누적을 곱하기로 (docs/10.5 4단계)
+ *   bloom       발광 마스크를 더하기로 (5~6단계)
+ *   fxLayer     화면 반전 등 (셰이크 무관)
+ *
+ * 화면 마감(색수차·비네트·그레인)은 world 전체에 한 패스로 건다 (7단계).
+ */
+const world = new Container()
 const scene = new Container()
-/** 씬 위에 얹는 층. 카메라 셰이크의 영향을 받지 않는다. */
 const fxLayer = new Container()
-app.stage.addChild(scene, fxLayer)
+const lightLayer = new LightLayer()
+const bloomLayer = new BloomLayer()
+const screenFilter = new ScreenFilter()
+
+world.addChild(scene, lightLayer.output, bloomLayer.output, fxLayer)
+world.filters = [screenFilter]
+app.stage.addChild(world)
+
+/** 성유물 갑옷의 발광. 블룸이 이 층만 번지게 한다. */
+const relicGlow = new Sprite(Texture.WHITE)
+relicGlow.anchor.set(0.5)
+relicGlow.visible = false
+bloomLayer.emissive.addChild(relicGlow)
 const greybox = new GreyboxRenderer(scene)
 greybox.drawGrid(LEVEL)
 
@@ -161,6 +193,8 @@ let clip: ClipState = startClip('idle')
 let vitals: Vitals = createVitals(balance.player)
 
 const director = new BreakDirector(20260825)
+let quality: QualityState = createQuality('high')
+let aberration = NO_ABERRATION
 /** 백골화에 쓸 살점 매트릭스. 사망 순간 고정한다. */
 let deathFlesh: readonly string[] | null = null
 /** 사망 후 부활까지 남은 틱. docs/09 — 사망에서 조작까지 3초 이내. */
@@ -227,6 +261,7 @@ function hurt(): void {
   }
 
   director.breakArmor({ matrix: brokenFrame, armor: brokenArmor, origin: breakOrigin })
+  aberration = triggerAberration(aberration, 'armorBreak')
   loop = requestHitstop(loop, ARMOR_BREAK_TIMING.hitstopMs)
 }
 
@@ -335,6 +370,55 @@ app.ticker.add(() => {
   const offset = director.cameraOffset
   scene.position.set(offset.x, offset.y)
 
+  // 프레임이 무너지면 스스로 품질을 낮춘다. 사용자가 직접 고른 뒤에는 멈춘다.
+  const change = observeFps(quality, fps, frameMs)
+  quality = change.state
+  if (change.notify) console.info('[grimhollow] 프레임 유지를 위해 화질을 낮췄습니다')
+  const features = featuresFor(quality.tier)
+
+  aberration = stepAberration(aberration, frameMs)
+  screenFilter.aberration = pixelOffset(aberration)
+  screenFilter.vignette = 0.25
+  screenFilter.grain = features.grain ? 0.03 : 0
+  screenFilter.time = now / 1000
+
+  // 성유물 갑옷은 스스로 빛난다. 잃는 순간 세상이 어두워진다.
+  const lights: Light[] = []
+  if (emitsLight(vitals) && vitals.relic) {
+    const spec = RELIC_LIGHT[vitals.relic]
+    lights.push({
+      x: player.body.x + player.body.width / 2,
+      y: player.body.y + player.body.height / 2,
+      radius: spec.radius,
+      color: spec.color,
+      intensity: spec.intensity,
+      flicker: { amplitude: 0.06, hz: 2.5 },
+    })
+  }
+
+  lightLayer.setEnabled(features.dynamicLights)
+  if (features.dynamicLights) {
+    lightLayer.update(
+      app.renderer,
+      limitLights(lights, features.maxLights, { x: player.body.x, y: player.body.y }),
+      now,
+    )
+  }
+
+  relicGlow.visible = emitsLight(vitals)
+  if (relicGlow.visible) {
+    relicGlow.position.set(
+      player.body.x + player.body.width / 2,
+      player.body.y + player.body.height / 2,
+    )
+    relicGlow.width = 20
+    relicGlow.height = 28
+    relicGlow.tint = vitals.relic ? RELIC_LIGHT[vitals.relic].color : 0xffffff
+    relicGlow.alpha = 0.55
+  }
+  bloomLayer.setEnabled(features.bloom)
+  if (features.bloom) bloomLayer.update(app.renderer)
+
   greybox.drawProjectiles(shots.projectiles)
   // 히트박스는 디버그에서만. 평소에는 스프라이트가 캐릭터를 대신한다.
   greybox.drawBodies(showArc ? [player.body] : [])
@@ -380,7 +464,8 @@ app.ticker.add(() => {
     hitstopMs: loop.hitstopMs,
     entities: 1 + shots.projectiles.length,
     state: `${player.state} · ${clip.name}[${frameFor(player, clip)}] · ${spriteStateOf(vitals)}`
-      + `${isInvulnerable(vitals) ? ` inv${vitals.iFrames}` : ''} x${vitals.lives}`,
+      + `${isInvulnerable(vitals) ? ` inv${vitals.iFrames}` : ''} x${vitals.lives}`
+      + ` · ${quality.tier}${quality.manual ? '*' : ''}`,
     velocity: [player.body.vx, player.body.vy],
     coyoteFrames: player.timers.coyoteFrames,
     jumpBufferFrames: input.buffers.jump,
@@ -413,6 +498,12 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault()
     vitals = pickUpRelic(vitals, 'gold', balance.player)
   }
+  if (e.key === 'F5') {
+    // 화질 수동 전환. 고른 뒤에는 자동 조정이 멈춘다.
+    e.preventDefault()
+    const next = QUALITY_TIERS[(QUALITY_TIERS.indexOf(quality.tier) + 1) % QUALITY_TIERS.length]
+    quality = setManual(quality, next ?? 'medium')
+  }
   if (e.key === 'F4') {
     // 피격 한 대. 적은 m1-5 다.
     e.preventDefault()
@@ -432,6 +523,8 @@ if (DEV) {
         clip,
         vitals,
         shards: director.shards,
+        quality,
+        aberration,
         tick: loop.tick,
         hitstopMs: loop.hitstopMs,
         input,
