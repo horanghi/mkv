@@ -205,7 +205,14 @@ bloomLayer.emissive.addChild(relicGlow, coreGlow)
 
 // --- 상태 -----------------------------------------------------------------------
 let world: World = createWorld(STAGE_1, balance)
-let quality: QualityState = createQuality('high')
+/**
+ * 화질 기본값은 **보통**이다. → docs/06 6.9
+ *
+ * 처음 오는 사람의 기기를 모르므로 안전한 쪽에서 시작하고, 60fps 가 5초
+ * 안정되면 자동으로 높음으로 올라간다. 높음에서 시작해 떨어뜨리면
+ * 첫인상이 끊기는 화면이 된다.
+ */
+let quality: QualityState = createQuality('medium')
 let aberration = NO_ABERRATION
 let deathFlesh: readonly string[] | null = null
 let showDebugBoxes = DEV

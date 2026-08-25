@@ -144,6 +144,44 @@ export const S1_SCENERY: readonly SceneryLayer[] = [
 ]
 
 /**
+ * 하늘 구름 — 8층 중 1층의 "노이즈" 자리.
+ *
+ * 아주 옅게, 아주 느리게 흐른다. 눈에 띄면 하늘이 아니라 무늬가 된다.
+ */
+export const CLOUDS = {
+  seed: 5501,
+  spanX: 700,
+  count: 9,
+  minY: 14,
+  maxY: 110,
+  minWidth: 70,
+  maxWidth: 190,
+  minHeight: 2,
+  maxHeight: 8,
+  color: 0x4d7b7d,
+  /** 초당 몇 px 흐르는가. 바람이 아니라 시간의 흐름이다 */
+  driftPxPerSecond: 3.2,
+} as const
+
+/**
+ * 전경 나뭇가지 — 8층 중 7층.
+ *
+ * **게임플레이 위에 얹히므로 랜슬을 가리면 안 된다.** 화면 맨 위에서
+ * 이만큼만 내려온다. 스테이지 1 에서 플레이어가 가장 높이 오르는 지점보다
+ * 위다 — 오클루전으로 깊이를 만들되 판독을 방해하지 않는 선이다.
+ * → docs/06 6.2
+ */
+export const CANOPY = {
+  parallax: PARALLAX.foreground,
+  seed: 8821,
+  spanX: 389,
+  color: S1_PALETTE.bars,
+  /** 화면 위에서부터 내려오는 최대 깊이 (px) */
+  maxDepth: 26,
+  minDepth: 4,
+} as const
+
+/**
  * 도깨비불.
  *
  * 묘지에서 유일하게 밝은 것. 강조색을 여기에만 쓴다 — 발광 마스크를 타고

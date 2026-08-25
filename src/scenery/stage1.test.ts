@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createRng } from '../core/rng.ts'
+import { STAGE_1 } from '../data/stages/stage1.ts'
 import { scatter } from './props.ts'
 import { ridgeline } from './silhouette.ts'
-import { FOG, PARALLAX, S1_PALETTE, S1_SCENERY, WISPS } from './stage1.ts'
+import { CANOPY, CLOUDS, FOG, PARALLAX, S1_PALETTE, S1_SCENERY, WISPS } from './stage1.ts'
 
 /** 명도 — 배경과 발판을 가르는 유일한 기준이다. → docs/06 6.2 */
 function luma(color: number): number {
@@ -82,6 +83,46 @@ describe('스테이지 1 배경', () => {
         expect(scatter(createRng(layer.seed), layer.scatter).length).toBeGreaterThan(0)
       }
     }
+  })
+
+  it('전경 나뭇가지가 플레이 영역까지 내려오지 않는다', () => {
+    // 하드코딩하지 않는다. 스테이지에 더 높은 발판이 생기면 여기서 걸려야 한다.
+    const map = STAGE_1.map
+    const at = (tx: number, ty: number): number =>
+      (tx < 0 || ty < 0 || tx >= map.width || ty >= map.height)
+        ? -1
+        : (map.tiles[ty * map.width + tx] ?? -1)
+
+    // 밟을 수 있는 발판 = 솔리드/원웨이이고 위 3칸이 비어 사람이 설 수 있는 곳
+    let highestRow = map.height
+    for (let ty = 3; ty < map.height; ty += 1) {
+      for (let tx = 1; tx < map.width - 1; tx += 1) {
+        const kind = at(tx, ty)
+        if (kind !== 1 && kind !== 2) continue
+        if (at(tx, ty - 1) !== 0 || at(tx, ty - 2) !== 0 || at(tx, ty - 3) !== 0) continue
+        highestRow = Math.min(highestRow, ty)
+      }
+    }
+
+    const PLAYER_HEIGHT = 26
+    const JUMP_HEIGHT = 62.3          // docs/02 실측
+    const cameraSlack = map.height * map.tileSize - 270
+    const headScreenY = highestRow * map.tileSize - PLAYER_HEIGHT - JUMP_HEIGHT - cameraSlack
+
+    // 오클루전이지 가림막이 아니다. 머리가 나뭇가지에 닿으면 안 된다.
+    expect(CANOPY.maxDepth).toBeLessThan(headScreenY)
+    expect(CANOPY.minDepth).toBeGreaterThan(0)
+    expect(CANOPY.parallax).toBe(PARALLAX.foreground)
+  })
+
+  it('구름이 하늘보다 밝지만 발판보다는 어둡다', () => {
+    expect(luma(CLOUDS.color)).toBeGreaterThan(luma(S1_PALETTE.skyBottom))
+    expect(luma(CLOUDS.color)).toBeLessThan(luma(S1_PALETTE.groundLip))
+  })
+
+  it('구름이 아주 느리게 흐른다 — 바람이 아니라 시간의 흐름이다', () => {
+    expect(CLOUDS.driftPxPerSecond).toBeGreaterThan(0)
+    expect(CLOUDS.driftPxPerSecond).toBeLessThan(10)
   })
 
   it('전경 안개가 랜슬을 덮지 않는다 — 오클루전이지 가림막이 아니다', () => {

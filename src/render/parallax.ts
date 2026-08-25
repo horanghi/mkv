@@ -3,8 +3,11 @@ import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../core/config.ts'
 import { createRng } from '../core/rng.ts'
 import type { Prop } from '../scenery/props.ts'
 import { scatter } from '../scenery/props.ts'
+import { cloudBands } from '../scenery/clouds.ts'
 import { columns, ridgeline } from '../scenery/silhouette.ts'
-import { FOG, S1_PALETTE, S1_SCENERY, WISPS, type SceneryLayer } from '../scenery/stage1.ts'
+import {
+  CANOPY, CLOUDS, FOG, S1_PALETTE, S1_SCENERY, WISPS, type SceneryLayer,
+} from '../scenery/stage1.ts'
 
 /**
  * 배경 8층 중 1~4층과 7층을 그린다.
@@ -27,6 +30,10 @@ interface Band {
 export class ParallaxRenderer {
   private readonly bands: Band[] = []
   private readonly sky = new Graphics()
+  private readonly clouds = new Graphics()
+  private readonly cloudRoot = new Container()
+  private readonly canopy = new Graphics()
+  private readonly canopyRoot = new Container()
   private readonly fog = new Graphics()
   /** 씬에 보이는 알맹이 */
   private readonly wisps = new Graphics()
@@ -43,6 +50,10 @@ export class ParallaxRenderer {
     this.drawSky()
     backdrop.addChild(this.sky)
 
+    this.drawClouds()
+    this.cloudRoot.addChild(this.clouds)
+    backdrop.addChild(this.cloudRoot)
+
     for (const layer of S1_SCENERY) {
       const band = this.buildBand(layer)
       backdrop.addChild(band.view)
@@ -52,6 +63,11 @@ export class ParallaxRenderer {
     this.drawFog()
     this.fogRoot.addChild(this.fog)
     foreground.addChild(this.fogRoot)
+
+    // 7층 나뭇가지. 안개보다 앞에 온다 — 더 가까운 것이다.
+    this.drawCanopy()
+    this.canopyRoot.addChild(this.canopy)
+    foreground.addChild(this.canopyRoot)
 
     // 발광 컨테이너는 렌더 타겟으로만 구워진다. 거기에만 그리면 번짐만 남고
     // 알맹이가 없어 아무것도 안 보인다. 씬에도 한 벌 그린다.
@@ -68,6 +84,13 @@ export class ParallaxRenderer {
       band.view.y = -cameraY * band.parallax
     }
     this.sky.y = -cameraY * 0.04
+    // 구름은 카메라와 시간 둘 다에 반응한다. 서 있어도 하늘이 흐른다.
+    this.cloudRoot.x = -wrap(
+      cameraX * 0.03 + timeSeconds * CLOUDS.driftPxPerSecond, CLOUDS.spanX)
+    this.cloudRoot.y = -cameraY * 0.03
+
+    this.canopyRoot.x = -wrap(cameraX * CANOPY.parallax, CANOPY.spanX)
+    this.canopyRoot.y = -cameraY * CANOPY.parallax * 0.3
 
     this.fogRoot.x = -wrap(cameraX * FOG.parallax, FOG.spanX)
     this.fogRoot.y = -cameraY * 0.2
@@ -91,6 +114,50 @@ export class ParallaxRenderer {
       const t = y / (LOGICAL_HEIGHT - 1)
       g.rect(0, y, LOGICAL_WIDTH, 1).fill(mix(top, bottom, t))
     }
+  }
+
+  /** 구름 — 옅은 가로 띠. 반복 구간을 화면보다 넓게 이어 붙인다. */
+  private drawClouds(): void {
+    const g = this.clouds.clear()
+    const copies = Math.ceil(LOGICAL_WIDTH / CLOUDS.spanX) + 1
+    const bands = cloudBands(createRng(CLOUDS.seed), { ...CLOUDS, width: CLOUDS.spanX })
+
+    for (let copy = 0; copy < copies; copy += 1) {
+      const offset = copy * CLOUDS.spanX
+      for (const cloud of bands) {
+        // 양 끝을 한 픽셀씩 좁혀 띠가 아니라 덩어리로 보이게 한다.
+        g.rect(offset + cloud.x, cloud.y, cloud.width, cloud.height)
+          .fill({ color: CLOUDS.color, alpha: cloud.alpha })
+        g.rect(offset + cloud.x + 6, cloud.y - 1, cloud.width - 12, 1)
+          .fill({ color: CLOUDS.color, alpha: cloud.alpha * 0.6 })
+      }
+    }
+  }
+
+  /**
+   * 전경 나뭇가지 — 화면 맨 위에 매달린다.
+   *
+   * 능선을 뒤집어 쓴다. 위에서 내려오는 실루엣은 아래에서 솟는 것과
+   * 같은 모양 문제이므로 같은 생성기를 쓴다.
+   */
+  private drawCanopy(): void {
+    const g = this.canopy.clear()
+    const copies = Math.ceil(LOGICAL_WIDTH / CANOPY.spanX) + 1
+    const depths = ridgeline(createRng(CANOPY.seed), {
+      width: CANOPY.spanX,
+      steps: 7,
+      minHeight: CANOPY.minDepth,
+      maxHeight: CANOPY.maxDepth,
+      jag: 0.9,
+    })
+
+    for (let copy = 0; copy < copies; copy += 1) {
+      const offset = copy * CANOPY.spanX
+      for (const column of columns(depths)) {
+        g.rect(offset + column.x, 0, column.width, column.height)
+      }
+    }
+    g.fill(CANOPY.color)
   }
 
   /**
