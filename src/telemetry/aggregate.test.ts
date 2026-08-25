@@ -205,9 +205,28 @@ describe('난이도가 섞인 결과', () => {
     expect(overall(gateVerdict(agg))).toBe('unknown')
   })
 
-  it('난이도가 없는 낡은 꾸러미는 게이트 난이도로 본다', () => {
-    const legacy = passingFive().map(({ diff: _diff, ...rest }) => rest as Payload)
-    expect(aggregate(legacy).testers).toBe(5)
-    expect(aggregate(legacy).offDifficultyDropped).toBe(0)
+})
+
+describe('낡은 형식', () => {
+  it('버전이 다른 꾸러미는 뺀다 — 같은 자리에 다른 뜻의 숫자가 있다', () => {
+    const agg = aggregate([...passingFive(), tester({ id: 'old', v: 2, retryRate: 0.2, deaths: 50 })])
+    expect(agg.testers).toBe(5)
+    expect(agg.staleDropped).toBe(1)
+    expect(agg.stale).toEqual([[2, 1]])
+  })
+
+  it('낡은 꾸러미의 숫자는 어느 집계에도 안 들어간다', () => {
+    const mixed = aggregate([...passingFive(), tester({ id: 'old', v: 2, retryRate: 0, deaths: 500 })])
+    const clean = aggregate(passingFive())
+    expect(mixed.retryRate).toBe(clean.retryRate)
+    expect(mixed.totalDeaths).toBe(clean.totalDeaths)
+  })
+
+  it('낡은 것으로 인원을 채워도 표본부족이다', () => {
+    const agg = aggregate([
+      ...Array.from({ length: 4 }, (_, i) => tester({ id: `t${i}` })),
+      tester({ id: 'old', v: 2 }),
+    ])
+    expect(overall(gateVerdict(agg))).toBe('unknown')
   })
 })

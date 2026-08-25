@@ -1,5 +1,6 @@
 import { DEFAULT_DIFFICULTY } from '../game/difficulty.ts'
 import { GATE, MIN_DEATHS, type Verdict } from './report.ts'
+import { SESSION_VERSION } from './session.ts'
 import type { Payload } from './payload.ts'
 
 /**
@@ -48,6 +49,10 @@ export interface Aggregate {
   readonly causes: Readonly<Record<string, number>>
   /** 같은 id 로 두 번 들어온 것을 걸러낸 수 */
   readonly duplicatesDropped: number
+  /** 낡은 형식이라 뺀 수 */
+  readonly staleDropped: number
+  /** 뺀 것들이 어느 버전이었나. [버전, 인원] */
+  readonly stale: readonly (readonly [number, number])[]
   /** 게이트 난이도가 아니라서 뺀 수 */
   readonly offDifficultyDropped: number
   /** 뺀 것들이 어느 난이도였나. [난이도, 인원] */
@@ -72,7 +77,17 @@ export function aggregate(payloads: readonly Payload[]): Aggregate {
     }
     byId.set(key, payload)
   }
-  const all = [...byId.values()]
+  const received = [...byId.values()]
+
+  // 낡은 형식은 뺀다. `SESSION_VERSION` 이 올랐다는 것은 **재는 방식이
+  // 바뀌었다**는 뜻이다 — 같은 자리에 다른 뜻의 숫자가 들어 있으므로,
+  // 합치면 어느 쪽도 아닌 값이 된다. 저장소는 이미 이 규칙으로 버린다.
+  const all = received.filter((p) => p.v === SESSION_VERSION)
+  const staleCounts = new Map<number, number>()
+  for (const p of received) {
+    if (p.v === SESSION_VERSION) continue
+    staleCounts.set(p.v, (staleCounts.get(p.v) ?? 0) + 1)
+  }
 
   // 게이트 난이도만 남긴다. 섞으면 합격선이 뜻을 잃는다.
   const unique = all.filter((p) => (p.diff ?? GATE_DIFFICULTY) === GATE_DIFFICULTY)
@@ -136,6 +151,8 @@ export function aggregate(payloads: readonly Payload[]): Aggregate {
       .sort((a, b) => b[1] - a[1] || a[0] - b[0]),
     causes,
     duplicatesDropped,
+    staleDropped: received.length - all.length,
+    stale: [...staleCounts.entries()].sort((a, b) => b[1] - a[1]),
     offDifficultyDropped: all.length - unique.length,
     offDifficulty: [...offCounts.entries()].sort((a, b) => b[1] - a[1]),
   }

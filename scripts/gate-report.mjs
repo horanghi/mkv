@@ -101,6 +101,11 @@ console.log(`  M1 게이트 — ${COLOR[verdict]}${MARK[verdict]}${RESET}   (${g
 if (agg.duplicatesDropped > 0) {
   console.log(`  같은 사람이 두 번 낸 것 ${agg.duplicatesDropped}건은 걸렀다.`)
 }
+if (agg.staleDropped > 0) {
+  const versions = agg.stale.map(([v, n]) => `v${v} ${n}명`).join(', ')
+  console.log(`  \x1b[33m낡은 형식이라 뺀 것 ${agg.staleDropped}건 (${versions}).`)
+  console.log(`  재는 방식이 바뀌었으므로 합칠 수 없다 — 다시 받아야 한다.${RESET}`)
+}
 if (agg.offDifficultyDropped > 0) {
   const where = agg.offDifficulty
     .map(([diff, n]) => `${DIFFICULTY_RULES[diff]?.name ?? diff} ${n}명`)
