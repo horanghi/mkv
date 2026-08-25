@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { TILE, tileAt } from '../physics/tilemap.ts'
 import { loadBalance } from '../data/load.ts'
 import { SECTION_START, STAGE_1 } from '../data/stages/stage1.ts'
+import type { EnemyKind } from '../entities/enemies/enemy.ts'
+import { DIFFICULTIES, applyDifficultyToStage } from './difficulty.ts'
+import type { Stage } from './stage.ts'
 import {
   checkpointGapsSeconds,
   joinSections,
@@ -163,6 +166,19 @@ describe('체크포인트', () => {
   })
 })
 
+/** 구덩이가 끝나고 다시 땅이 시작되는 타일들. 뛰어서 닿는 자리다. */
+function landingTiles(stage: Stage): readonly number[] {
+  const groundRow = stage.map.height - 1
+  const landings: number[] = []
+  let inGap = false
+  for (let tx = 0; tx < stage.map.width; tx += 1) {
+    const empty = tileAt(stage.map, tx, groundRow) === TILE.empty
+    if (empty) inGap = true
+    else if (inGap) { landings.push(tx); inGap = false }
+  }
+  return landings
+}
+
 describe('적 배치', () => {
   it('1-A 는 좀비 3마리뿐이다 — docs/04 구성 그대로', () => {
     const inA = STAGE_1.enemies.filter((e) => e.tx < SECTION_START.b)
@@ -183,6 +199,30 @@ describe('적 배치', () => {
     for (const landing of gapEnds) {
       const near = STAGE_1.enemies.filter((e) => Math.abs(e.tx - landing) <= 3)
       expect(near).toEqual([])
+    }
+  })
+
+  it('모든 구간에서 지상 적이 착지점을 3타일 이상 비운다', () => {
+    // 위 규칙은 이름 그대로 **첫 점프**만 본다. 하지만 "뛴 직후에는 궤도를
+    // 바꿀 수 없다"는 것은 물리라서 튜토리얼에서만 성립하지 않는다.
+    //
+    // 난이도까지 함께 본다. 성기사는 "검증된 자리 옆"에 적을 더 세우는데,
+    // 그 옆이 착지점이면 어려운 게 아니라 부당해진다. 게이트는 기사에서만
+    // 재므로 여기서 안 잡으면 아무도 모른 채 M2 로 실려 간다.
+    //
+    // 나는 적은 뺀다 — 대기 상태로 놓여 화면에 먼저 보이고 나서 움직인다.
+    const FLYERS: readonly EnemyKind[] = ['grimm', 'corvid']
+
+    for (const id of DIFFICULTIES) {
+      const stage = applyDifficultyToStage(STAGE_1, id)
+      for (const landing of landingTiles(stage)) {
+        const tooClose = stage.enemies.filter(
+          (e) => !FLYERS.includes(e.kind) && Math.abs(e.tx - landing) < 3,
+        )
+        expect({ 난이도: id, 착지: landing, 너무가까운적: tooClose }).toEqual({
+          난이도: id, 착지: landing, 너무가까운적: [],
+        })
+      }
     }
   })
 

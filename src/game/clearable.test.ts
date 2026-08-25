@@ -5,58 +5,68 @@ import { STAGE_1 } from '../data/stages/stage1.ts'
 import { CAIRN, coreBox, damageCairn } from '../entities/bosses/cairn.ts'
 import { boxOfEnemy } from '../entities/enemies/enemy.ts'
 import { TILE, tileAt } from '../physics/tilemap.ts'
+import { applyDifficulty, applyDifficultyToStage, DIFFICULTIES, rulesFor } from './difficulty.ts'
 import { createWorld, stepWorld } from './world.ts'
+import type { Balance } from '../data/load.ts'
+import type { Stage } from './stage.ts'
 
 const balance = loadBalance()
 
 /**
+ * 사람처럼 움직이는 봇. 규칙은 셋뿐이고, 처음 플레이하는 사람과 같다.
+ *
+ *   1. 앞에 적이 있으면 멈춰서 던진다
+ *   2. 앞에 구덩이가 있으면 뛴다
+ *   3. 아니면 걷는다
+ *
+ * 사람의 플레이를 대신하지는 못한다. **경로가 막혀 있지 않다**는 것만 본다.
+ */
+function botReachesBoss(stage: Stage, stageBalance: Balance): boolean {
+  let world = createWorld(stage, stageBalance)
+  let input: InputState = INITIAL_INPUT
+  const size = stage.map.tileSize
+  const groundRow = stage.map.height - 1
+
+  const gapAhead = (x: number): boolean => {
+    const tx = Math.floor((x + 14) / size)
+    return tileAt(stage.map, tx, groundRow) === TILE.empty
+  }
+  const enemyAhead = (x: number, y: number): boolean =>
+    world.enemies.some((e) => {
+      const box = boxOfEnemy(e)
+      return box.x - x > 0 && box.x - x < 70 && Math.abs(box.y - y) < 40
+    })
+
+  for (let i = 0; i < 60 * 300; i += 1) {
+    const body = world.player.body
+    const actions: Action[] = []
+
+    if (enemyAhead(body.x, body.y)) {
+      // 멈춰서 던진다. 눌렀다 떼야 다시 나간다.
+      if (i % 6 < 3) actions.push('attack')
+    } else {
+      actions.push('right')
+      if (body.onGround && gapAhead(body.x)) actions.push('jump')
+    }
+
+    input = advanceInput(input, frameOf(...actions))
+    const step = stepWorld(world, input, stageBalance)
+    world = step.world
+    input = step.input
+    if (world.cairn.awake) return true
+  }
+
+  return false
+}
+
+/**
  * 스테이지 1 이 처음부터 끝까지 클리어 가능한가.
  *
- * m1-5 의 Done 조건이다. 사람이 플레이하는 것을 대신하지는 못하지만,
- * **경로가 막혀 있지 않다**는 것은 기계가 확인할 수 있다.
+ * m1-5 의 Done 조건이다.
  */
 describe('스테이지 1 — 클리어 가능성', () => {
   it('사람처럼 움직이면 보스룸까지 닿는다', () => {
-    // 봇의 규칙은 셋뿐이다. 사람이 처음 플레이할 때 하는 것과 같다.
-    //   1. 앞에 적이 있으면 멈춰서 던진다
-    //   2. 앞에 구덩이가 있으면 뛴다
-    //   3. 아니면 걷는다
-    let world = createWorld(STAGE_1, balance)
-    let input: InputState = INITIAL_INPUT
-    let reached = false
-    const size = STAGE_1.map.tileSize
-    const groundRow = STAGE_1.map.height - 1
-
-    const gapAhead = (x: number): boolean => {
-      const tx = Math.floor((x + 14) / size)
-      return tileAt(STAGE_1.map, tx, groundRow) === TILE.empty
-    }
-    const enemyAhead = (x: number, y: number): boolean =>
-      world.enemies.some((e) => {
-        const box = boxOfEnemy(e)
-        return box.x - x > 0 && box.x - x < 70 && Math.abs(box.y - y) < 40
-      })
-
-    for (let i = 0; i < 60 * 300 && !reached; i += 1) {
-      const body = world.player.body
-      const actions: Action[] = []
-
-      if (enemyAhead(body.x, body.y)) {
-        // 멈춰서 던진다. 눌렀다 떼야 다시 나간다.
-        if (i % 6 < 3) actions.push('attack')
-      } else {
-        actions.push('right')
-        if (body.onGround && gapAhead(body.x)) actions.push('jump')
-      }
-
-      input = advanceInput(input, frameOf(...actions))
-      const step = stepWorld(world, input, balance)
-      world = step.world
-      input = step.input
-      if (world.cairn.awake) reached = true
-    }
-
-    expect(reached).toBe(true)
+    expect(botReachesBoss(STAGE_1, balance)).toBe(true)
   })
 
   it('체크포인트가 진행을 보존한다 — 죽어도 처음부터 하지 않는다', () => {
@@ -126,4 +136,21 @@ describe('스테이지 1 — 클리어 가능성', () => {
     // 실측 통과 가능 간격은 3타일이다. → docs/02 실측 주석
     for (const gap of gaps) expect(gap * size).toBeLessThanOrEqual(3 * size)
   })
+})
+
+/**
+ * 난이도를 바꾼 뒤에도 깰 수 있는가.
+ *
+ * 성기사는 **적을 늘린다.** 늘린 자리가 구덩이 착지점이거나 통로를 막으면
+ * 그 난이도는 어려운 게 아니라 불가능해진다. 게이트는 기사에서만 재므로
+ * 여기서 안 잡으면 아무도 모르는 채로 M2 에 실려 간다.
+ * → docs/08 8.4 · prompts/m1-gate.md
+ */
+describe('난이도 3단계 — 전부 보스룸까지 닿는가', () => {
+  for (const id of DIFFICULTIES) {
+    it(`${rulesFor(id).name} 에서도 길이 막히지 않는다`, () => {
+      const stage = applyDifficultyToStage(STAGE_1, id)
+      expect(botReachesBoss(stage, applyDifficulty(balance, id))).toBe(true)
+    })
+  }
 })
