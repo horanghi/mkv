@@ -83,9 +83,9 @@ src/
       lightLayer.ts   # 광원 누적 → 곱하기 합성
       bloomLayer.ts   # 발광 마스크 → 3단 블룸
   game/
-    state.ts      # 게임 상태 (불변)
-    stage.ts      # 스테이지 로더
-    checkpoint.ts
+    world.ts      # 월드 상태와 한 틱 (불변) — 렌더를 모른다
+    stage.ts      # 스테이지 데이터 · Tiled 로더 · 체크포인트
+    camera.ts     # 데드존 추적 · 선행 · 낙하 확대
     score.ts
   ui/
     hud/
