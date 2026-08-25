@@ -146,7 +146,10 @@ export const STAGE_1: Stage = {
     { kind: 'corvid', tx: SECTION_START.b + 22, ty: 8, state: 'perch' },
     { kind: 'ghoul', tx: SECTION_START.b + 32, ty: 15, facing: -1 },
     { kind: 'grimm', tx: SECTION_START.b + 40, ty: 10, state: 'dormant' },
-    { kind: 'ghoul', tx: SECTION_START.b + 50, ty: 15, facing: -1 },
+    // 착지 지점(b+49)에서 3타일 떨어뜨린다. 앞의 구덩이가 통과 한계폭이라
+    // 뛰는 순간 궤도를 바꿀 수 없는데, 착지 타일 옆의 적은 회피 불가능한
+    // 피해가 된다. → docs/04 레벨 규칙
+    { kind: 'ghoul', tx: SECTION_START.b + 52, ty: 15, facing: -1 },
   ],
 
   bossGateX: (SECTION_START.boss + 6) * 16,
