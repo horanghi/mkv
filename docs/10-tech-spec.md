@@ -53,6 +53,11 @@ src/
     enemies/      # 적 14종
     bosses/       # 보스 7종
     projectiles/  # 투사체
+  fx/             # 연출 로직 (순수 — 렌더러를 모른다)
+    sequence.ts   # 타임라인 · 갑옷 파괴/사망 큐
+    shard.ts      # 파편 샘플링 · 물리
+    camera.ts     # 셰이크
+    dissolve.ts   # 백골화 디졸브
   sprite/         # 도트 매트릭스 (순수 데이터 — 렌더러를 모른다)
     matrix.ts     # 검증 · 스탬프
     lancel.ts     # 파츠 3세트 · 무기 7종
@@ -67,6 +72,8 @@ src/
     postfx/       # 셰이더 스택
     particles.ts
     spriteTexture.ts  # 매트릭스 → PixiJS 텍스처 (캐시)
+    breakFx.ts        # 파편 · 섬광 링 · 화면 반전 그리기
+    breakDirector.ts  # 연출 진행 상태
   game/
     state.ts      # 게임 상태 (불변)
     stage.ts      # 스테이지 로더
@@ -262,6 +269,7 @@ function updateBody(body: Body, dt: number): Body {
 | `game/`, `entities/` 상태 머신 | 85% |
 | 전체 | 80% |
 | `sprite/` | 95% — 순수 데이터라 전부 검증 가능하다 |
+| `fx/` | 85% — 타이밍과 물리는 검증 대상, 그리기는 제외 |
 | `render/` | 제외 (시각 검증으로 대체) |
 
 ---

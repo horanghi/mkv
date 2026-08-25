@@ -40,7 +40,14 @@ import {
   type Vitals,
 } from './entities/player/vitals.ts'
 import { advanceClip, playClip, startClip, type ClipState } from './sprite/clip.ts'
-import { SpriteSheet } from './render/spriteTexture.ts'
+import { SpriteSheet, matrixToTexture } from './render/spriteTexture.ts'
+import { BreakFx } from './render/breakFx.ts'
+import { BreakDirector } from './render/breakDirector.ts'
+import { skeletonizeFrame } from './fx/dissolve.ts'
+import { ARMOR_BREAK_TIMING, DEATH_TIMING } from './fx/sequence.ts'
+import { partsFor, paletteFor } from './sprite/armor.ts'
+import { currentPose } from './sprite/clip.ts'
+import { pose } from './sprite/pose.ts'
 import { GreyboxRenderer } from './render/debug/greybox.ts'
 import { ControlHint } from './render/debug/hint.ts'
 import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
@@ -127,7 +134,9 @@ const LEVEL: Tilemap = parseTilemap([
 const SPAWN = { x: 24, y: 200 }
 
 const scene = new Container()
-app.stage.addChild(scene)
+/** 씬 위에 얹는 층. 카메라 셰이크의 영향을 받지 않는다. */
+const fxLayer = new Container()
+app.stage.addChild(scene, fxLayer)
 const greybox = new GreyboxRenderer(scene)
 greybox.drawGrid(LEVEL)
 
@@ -146,8 +155,14 @@ const lancel = new Sprite(sheet.frame('steel', 'idle', 0))
 lancel.anchor.set(0.5, 1)
 scene.addChild(lancel)
 
+const breakFx = new BreakFx(scene, fxLayer)
+
 let clip: ClipState = startClip('idle')
 let vitals: Vitals = createVitals(balance.player)
+
+const director = new BreakDirector(20260825)
+/** 백골화에 쓸 살점 매트릭스. 사망 순간 고정한다. */
+let deathFlesh: readonly string[] | null = null
 /** 사망 후 부활까지 남은 틱. docs/09 — 사망에서 조작까지 3초 이내. */
 let respawnTicks = 0
 const RESPAWN_DELAY_TICKS = 90
@@ -168,6 +183,9 @@ function reset(): void {
   clip = startClip('idle')
   vitals = createVitals(balance.player)
   respawnTicks = 0
+  director.reset()
+  deathFlesh = null
+  breakFx.clear()
 }
 
 /** 체크포인트 복귀. 맵과 붕괴 상태는 유지한다 — 스테이지를 처음부터 하지 않는다. */
@@ -178,15 +196,38 @@ function respawnPlayer(): void {
   vitals = respawn(vitals, balance.player)
 }
 
-/** 피격 한 번. 갑옷이 깨지면 180ms, 죽으면 250ms 멈춘다. → docs/06 6.5 */
+/**
+ * 피격 한 번 — 게임에서 가장 중요한 300ms 가 여기서 시작한다.
+ *
+ * 플레이어는 갑옷을 잃고 **좌절**한다. 그 감정을 **감탄**으로 덮어쓰는 것이
+ * 이 연출의 목적이다. → docs/06-visual-direction.md 6.3
+ */
 function hurt(): void {
+  // 깨지기 직전의 갑옷을 기억해둔다. 파편은 그 갑옷의 실제 픽셀에서 나온다.
+  const brokenArmor = spriteStateOf(vitals)
+  const brokenFrame = pose(partsFor(brokenArmor), currentPose(clip))
+
   const result = takeHit(vitals, balance.player)
   if (result.blocked) return
 
   vitals = result.vitals
   clip = startClip('hurt')
-  loop = requestHitstop(loop, result.died ? 250 : 180)
-  if (result.died) respawnTicks = RESPAWN_DELAY_TICKS
+  // 스프라이트 좌상단. 파편과 링이 여기서 출발한다.
+  const breakOrigin = {
+    x: Math.round(player.body.x + player.body.width / 2) - 16,
+    y: Math.round(player.body.y + player.body.height) + 1 - 32,
+  }
+
+  if (result.died) {
+    deathFlesh = brokenFrame
+    director.die(breakOrigin)
+    loop = requestHitstop(loop, DEATH_TIMING.hitstopMs)
+    respawnTicks = RESPAWN_DELAY_TICKS
+    return
+  }
+
+  director.breakArmor({ matrix: brokenFrame, armor: brokenArmor, origin: breakOrigin })
+  loop = requestHitstop(loop, ARMOR_BREAK_TIMING.hitstopMs)
 }
 
 function stepWorld(input: InputState): InputState {
@@ -211,7 +252,7 @@ function stepWorld(input: InputState): InputState {
   // 낙사는 갑옷과 무관하게 즉사다. 성유물도 막지 못한다. → docs/02 2.5
   if (!vitals.dead && player.body.y > LOGICAL_HEIGHT) {
     vitals = fallIntoPit(vitals)
-    loop = requestHitstop(loop, 250)
+    loop = requestHitstop(loop, DEATH_TIMING.hitstopMs)
     respawnTicks = RESPAWN_DELAY_TICKS
   }
 
@@ -224,6 +265,8 @@ function stepWorld(input: InputState): InputState {
       respawnPlayer()
     }
   }
+
+  director.stepShards(balance.player.gravityFalling, 16 * 16, TICK_SECONDS)
 
   clip = advanceClip(playClip(clip, nextClip(player, clip)), TICK_SECONDS * 1000)
 
@@ -286,6 +329,12 @@ app.ticker.add(() => {
     player.body.y,
     player.facing,
   )
+  // --- 연출 ---------------------------------------------------------------
+  // **히트스톱 중에도 흐른다.** 로직이 멈춘 동안 화면에서 벌어지는 일이 이 연출이다.
+  director.advance(frameMs)
+  const offset = director.cameraOffset
+  scene.position.set(offset.x, offset.y)
+
   greybox.drawProjectiles(shots.projectiles)
   // 히트박스는 디버그에서만. 평소에는 스프라이트가 캐릭터를 대신한다.
   greybox.drawBodies(showArc ? [player.body] : [])
@@ -296,12 +345,29 @@ app.ticker.add(() => {
     frameFor(player, clip),
     clip.name === 'attack' ? 'lance' : undefined,
   )
+
+  // 사망 — 살점이 벗겨지는 8프레임. 손으로 찍지 않고 디졸브로 만든다.
+  const skeleton = director.skeletonFrame
+  if (deathFlesh && skeleton !== null) {
+    lancel.texture = matrixToTexture(
+      skeletonizeFrame(deathFlesh, pose(partsFor('bones'), currentPose(clip)), skeleton,
+        DEATH_TIMING.skeletonizeFrames),
+      paletteFor('bones'),
+    )
+  }
   // 무적 중 4프레임 주기 깜빡임. 갑옷 상태는 HUD 에 표시하지 않는다 —
   // 스프라이트가 곧 체력 바다. → docs/02 2.5
   lancel.visible = !isBlinking(vitals, balance.player)
   lancel.scale.x = player.facing
   lancel.x = Math.round(player.body.x + player.body.width / 2)
   lancel.y = Math.round(player.body.y + player.body.height) + 1
+
+  breakFx.drawShards(director.shards, ARMOR_BREAK_TIMING.shardHoldMs)
+  breakFx.drawFlash(lancel.texture, lancel.x, lancel.y, lancel.scale.x, director.flashAlpha)
+
+  const ring = director.ring
+  breakFx.drawRing(ring.x, ring.y, ring.radius, ring.alpha)
+  breakFx.setInvert(director.consumeInvert())
 
   const metrics: DebugMetrics = {
     fps,
@@ -365,6 +431,7 @@ if (DEV) {
       snapshot: () => ({
         clip,
         vitals,
+        shards: director.shards,
         tick: loop.tick,
         hitstopMs: loop.hitstopMs,
         input,
