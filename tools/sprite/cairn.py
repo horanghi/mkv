@@ -75,7 +75,7 @@ PARTS = {'HEAD': head, 'TORSO': torso, 'ARM': arm,
 # 팔은 어깨가 몸통 안에 묻혀야 한다. 닿기만 하면 떨어져 보인다 (그림 날개와 같은 실패).
 OFFSETS = {'BASE': (0, 36), 'TORSO': (11, 16), 'HEAD': (18, 5),
            'ARM_B': (2, 21), 'ARM_F': (42, 21), 'CORE': (23, 26)}
-pathlib.Path('parts.json').write_text(json.dumps(
+(pathlib.Path(__file__).resolve().parent / 'parts.json').write_text(json.dumps(
     {'parts': {k: to_strings(v) for k, v in PARTS.items()}, 'offsets': OFFSETS},
     ensure_ascii=False, indent=1))
 for n, g in PARTS.items():

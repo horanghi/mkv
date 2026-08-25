@@ -1,6 +1,11 @@
 import json, pathlib
 
-data = json.loads(pathlib.Path('parts.json').read_text())
+# 어디서 실행하든 같은 곳을 읽고 쓴다. 절대 경로를 박으면 만든 사람 계정명이
+# 저장소에 남고, 다른 사람 기계에서는 그냥 깨진다.
+HERE = pathlib.Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+
+data = json.loads((HERE / 'parts.json').read_text())
 PARTS, OFFSETS = data['parts'], data['offsets']
 
 LANCEL = {
@@ -80,5 +85,5 @@ html = (html.replace('__PARTS__', json.dumps(PARTS))
             .replace('__OFFSETS__', json.dumps(OFFSETS))
             .replace('__LANCEL__', json.dumps(LANCEL))
             .replace('__ORDER__', json.dumps(ORDER)))
-pathlib.Path('/Users/jude/projects/personal/mkv/docs/cairn.html').write_text(html)
+(REPO / 'docs' / 'cairn.html').write_text(html)
 print('docs/cairn.html 생성')
