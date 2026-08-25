@@ -15,6 +15,8 @@ import { formatScore, formatTime, isTimeCritical, type HudState } from '../ui/hu
 /** HUD 상단 바 높이. 전경 나뭇가지가 이 아래에 걸린다 — 위에 그리면 가려진다. */
 export const HUD_BAR_HEIGHT = 24
 const BAR_HEIGHT = HUD_BAR_HEIGHT
+/** 보스 게이지 두께. 상단바보다 얇아야 상시 정보와 구분된다. */
+const BOSS_BAR_HEIGHT = 6
 const COLOR = {
   bar: 0x0b0710,
   life: 0xc23b4a,
@@ -22,6 +24,7 @@ const COLOR = {
   text: 0xede6d8,
   warn: 0xe23e4e,
   bossBack: 0x241c2e,
+  bossEdge: 0x0b0710,
   bossFill: 0xc23b4a,
 } as const
 
@@ -84,12 +87,18 @@ export class HudRenderer {
     const score = formatScore(hud.score)
     drawText(g, score, LOGICAL_WIDTH - 8 - score.length * 4, 9, shade(COLOR.text, dim))
 
-    // 보스 HP — 조건부, 화면 하단
+    // 보스 HP — 조건부, 상단바 바로 아래.
+    //
+    // 바닥에 깔면 보스와 플레이어가 있는 곳에서 눈을 떼야 읽힌다. 이 장르에서
+    // 보스 게이지는 위에 있고, 위쪽은 이미 정보를 보러 가는 자리다(시간·점수).
     if (hud.bossHp !== null) {
       const width = 300
       const left = (LOGICAL_WIDTH - width) / 2
-      g.rect(left, 250, width, 5).fill(COLOR.bossBack)
-      g.rect(left, 250, Math.round(width * clamp01(hud.bossHp)), 5).fill(COLOR.bossFill)
+      const top = BAR_HEIGHT + 4
+      g.rect(left - 1, top - 1, width + 2, BOSS_BAR_HEIGHT + 2).fill(COLOR.bossEdge)
+      g.rect(left, top, width, BOSS_BAR_HEIGHT).fill(COLOR.bossBack)
+      g.rect(left, top, Math.round(width * clamp01(hud.bossHp)), BOSS_BAR_HEIGHT)
+        .fill(COLOR.bossFill)
     }
 
     // 성흔 쿨다운 — 성유물 착용 시에만, 우하단
