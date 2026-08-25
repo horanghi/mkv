@@ -24,7 +24,21 @@ import {
 } from './physics/crumble.ts'
 import { boxOf } from './physics/body.ts'
 import { parseTilemap, type Tilemap } from './physics/tilemap.ts'
-import { ARMOR_STATES, type ArmorState } from './sprite/armor.ts'
+import {
+  continueGame,
+  createVitals,
+  fallIntoPit,
+  isBlinking,
+  isGameOver,
+  isInvulnerable,
+  pickUpRelic,
+  respawn,
+  speedMultiplier,
+  spriteStateOf,
+  takeHit,
+  tickVitals,
+  type Vitals,
+} from './entities/player/vitals.ts'
 import { advanceClip, playClip, startClip, type ClipState } from './sprite/clip.ts'
 import { SpriteSheet } from './render/spriteTexture.ts'
 import { GreyboxRenderer } from './render/debug/greybox.ts'
@@ -125,7 +139,7 @@ let showArc = DEV
 
 // --- 스프라이트 -----------------------------------------------------------------
 const sheet = new SpriteSheet()
-sheet.warmUp(ARMOR_STATES, ['idle', 'walk', 'jump', 'crouch', 'land'], 'lance')
+sheet.warmUp(['relic', 'steel', 'bare', 'bones'], ['idle', 'walk', 'jump', 'crouch', 'land', 'hurt'], 'lance')
 
 const lancel = new Sprite(sheet.frame('steel', 'idle', 0))
 // 앵커는 아래 가운데. 스프라이트 세로 중심선이 x16 이라 좌우 반전이 대칭이 된다.
@@ -133,7 +147,10 @@ lancel.anchor.set(0.5, 1)
 scene.addChild(lancel)
 
 let clip: ClipState = startClip('idle')
-let armor: ArmorState = 'steel'
+let vitals: Vitals = createVitals(balance.player)
+/** 사망 후 부활까지 남은 틱. docs/09 — 사망에서 조작까지 3초 이내. */
+let respawnTicks = 0
+const RESPAWN_DELAY_TICKS = 90
 
 /** M0 의 유일한 무기. 나머지 6종은 M2 다. */
 const LANCE = requireWeapon(balance, 'lance')
@@ -149,13 +166,36 @@ function reset(): void {
   player = createPlayer(SPAWN.x, SPAWN.y, balance.player)
   shots = EMPTY_WORLD
   clip = startClip('idle')
+  vitals = createVitals(balance.player)
+  respawnTicks = 0
+}
+
+/** 체크포인트 복귀. 맵과 붕괴 상태는 유지한다 — 스테이지를 처음부터 하지 않는다. */
+function respawnPlayer(): void {
+  player = createPlayer(SPAWN.x, SPAWN.y, balance.player)
+  shots = EMPTY_WORLD
+  clip = startClip('idle')
+  vitals = respawn(vitals, balance.player)
+}
+
+/** 피격 한 번. 갑옷이 깨지면 180ms, 죽으면 250ms 멈춘다. → docs/06 6.5 */
+function hurt(): void {
+  const result = takeHit(vitals, balance.player)
+  if (result.blocked) return
+
+  vitals = result.vitals
+  clip = startClip('hurt')
+  loop = requestHitstop(loop, result.died ? 250 : 180)
+  if (result.died) respawnTicks = RESPAWN_DELAY_TICKS
 }
 
 function stepWorld(input: InputState): InputState {
   const ticked = tickCrumble(crumble, map)
   map = ticked.map
 
-  const stepped = stepPlayer(player, input, map, balance.player, TICK_SECONDS)
+  const stepped = stepPlayer(player, input, map, balance.player, TICK_SECONDS, {
+    speedScale: speedMultiplier(vitals, balance.player),
+  })
   player = stepped.player
   crumble = touchCrumbling(ticked.state, map, stepped.crumbled)
 
@@ -168,8 +208,22 @@ function stepWorld(input: InputState): InputState {
     })
   }
 
-  // 구덩이에 빠지면 되돌린다. 낙사 처리는 m1 이다.
-  if (player.body.y > LOGICAL_HEIGHT) reset()
+  // 낙사는 갑옷과 무관하게 즉사다. 성유물도 막지 못한다. → docs/02 2.5
+  if (!vitals.dead && player.body.y > LOGICAL_HEIGHT) {
+    vitals = fallIntoPit(vitals)
+    loop = requestHitstop(loop, 250)
+    respawnTicks = RESPAWN_DELAY_TICKS
+  }
+
+  vitals = tickVitals(vitals)
+
+  if (vitals.dead) {
+    respawnTicks -= 1
+    if (respawnTicks <= 0) {
+      if (isGameOver(vitals)) vitals = continueGame(balance.player).vitals
+      respawnPlayer()
+    }
+  }
 
   clip = advanceClip(playClip(clip, nextClip(player, clip)), TICK_SECONDS * 1000)
 
@@ -237,11 +291,14 @@ app.ticker.add(() => {
   greybox.drawBodies(showArc ? [player.body] : [])
 
   lancel.texture = sheet.frame(
-    armor,
+    spriteStateOf(vitals),
     clip.name,
     frameFor(player, clip),
     clip.name === 'attack' ? 'lance' : undefined,
   )
+  // 무적 중 4프레임 주기 깜빡임. 갑옷 상태는 HUD 에 표시하지 않는다 —
+  // 스프라이트가 곧 체력 바다. → docs/02 2.5
+  lancel.visible = !isBlinking(vitals, balance.player)
   lancel.scale.x = player.facing
   lancel.x = Math.round(player.body.x + player.body.width / 2)
   lancel.y = Math.round(player.body.y + player.body.height) + 1
@@ -256,7 +313,8 @@ app.ticker.add(() => {
     alpha: stepped.alpha,
     hitstopMs: loop.hitstopMs,
     entities: 1 + shots.projectiles.length,
-    state: `${player.state} · ${clip.name}[${frameFor(player, clip)}] · ${armor}`,
+    state: `${player.state} · ${clip.name}[${frameFor(player, clip)}] · ${spriteStateOf(vitals)}`
+      + `${isInvulnerable(vitals) ? ` inv${vitals.iFrames}` : ''} x${vitals.lives}`,
     velocity: [player.body.vx, player.body.vy],
     coyoteFrames: player.timers.coyoteFrames,
     jumpBufferFrames: input.buffers.jump,
@@ -285,9 +343,14 @@ window.addEventListener('keydown', (e) => {
     showArc = !showArc
   }
   if (e.key === 'F3') {
-    // 재생 중에 갑옷을 바꿔도 프레임 인덱스가 그대로인지 눈으로 확인한다.
+    // 성유물 획득. 상자는 m1-5 다.
     e.preventDefault()
-    armor = ARMOR_STATES[(ARMOR_STATES.indexOf(armor) + 1) % ARMOR_STATES.length] ?? 'steel'
+    vitals = pickUpRelic(vitals, 'gold', balance.player)
+  }
+  if (e.key === 'F4') {
+    // 피격 한 대. 적은 m1-5 다.
+    e.preventDefault()
+    hurt()
   }
 })
 
@@ -301,7 +364,7 @@ if (DEV) {
       sheet,
       snapshot: () => ({
         clip,
-        armor,
+        vitals,
         tick: loop.tick,
         hitstopMs: loop.hitstopMs,
         input,

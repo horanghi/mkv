@@ -62,12 +62,18 @@ export function createPlayer(x: number, y: number, balance: PlayerBalance): Play
  *   6. 충돌 해소
  *   7. 관용 타이머 · 공격 타이머 · 상태 갱신
  */
+export interface PlayerStepOptions {
+  /** 갑옷 상태의 이동 속도 보정. `vitals.speedMultiplier` 가 준다. */
+  readonly speedScale?: number
+}
+
 export function stepPlayer(
   player: Player,
   input: InputState,
   map: Tilemap,
   balance: PlayerBalance,
   dt: number,
+  options: PlayerStepOptions = {},
 ): PlayerStep {
   const wasGrounded = player.body.onGround
 
@@ -75,7 +81,12 @@ export function stepPlayer(
   let body = crouched.body
   const crouching = crouched.crouching
 
-  body = { ...body, vx: stepHorizontal(body.vx, input.moveAxis, wasGrounded, crouching, balance, dt) }
+  body = {
+    ...body,
+    vx: stepHorizontal(
+      body.vx, input.moveAxis, wasGrounded, crouching, balance, dt, options.speedScale ?? 1,
+    ),
+  }
 
   let timers = player.timers
   let nextInput = input

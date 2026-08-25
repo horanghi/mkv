@@ -30,11 +30,14 @@ export function stepHorizontal(
   crouching: boolean,
   balance: PlayerBalance,
   dt: number,
+  /** 갑옷 상태 보정. 속옷은 1.08 이다 — 공포 보정. → docs/02 2.5 */
+  speedScale = 1,
 ): number {
-  if (!grounded) return approach(vx, axis * balance.runSpeed, balance.airAccel, dt)
+  const top = balance.runSpeed * speedScale
+  if (!grounded) return approach(vx, axis * top, balance.airAccel, dt)
 
   // 웅크린 채로는 걷지 않는다. 웅크리기를 확실한 선택으로 만든다.
-  const target = crouching ? 0 : axis * balance.runSpeed
+  const target = crouching ? 0 : axis * top
   const rate = target === 0 ? balance.decel : balance.accel
   return approach(vx, target, rate, dt)
 }

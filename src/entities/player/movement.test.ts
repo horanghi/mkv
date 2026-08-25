@@ -99,3 +99,22 @@ describe('중력', () => {
     expect(stepGravity(0, p, dt)).toBeCloseTo(p.gravityFalling * dt)
   })
 })
+
+describe('갑옷 속도 보정', () => {
+  it('속옷은 8% 빠르다', () => {
+    let vx = 0
+    for (let i = 0; i < 60; i += 1) vx = stepHorizontal(vx, 1, true, false, p, dt, 1.08)
+    expect(vx).toBeCloseTo(p.runSpeed * 1.08)
+  })
+
+  it('배율을 안 주면 기본 속도다', () => {
+    let vx = 0
+    for (let i = 0; i < 60; i += 1) vx = stepHorizontal(vx, 1, true, false, p, dt)
+    expect(vx).toBe(p.runSpeed)
+  })
+
+  it('공중에서도 배율이 적용된다 — 다만 airAccel 이 0 이라 변하지 않는다', () => {
+    const takeoff = p.runSpeed * 1.08
+    expect(stepHorizontal(takeoff, -1, false, false, p, dt, 1.08)).toBe(takeoff)
+  })
+})

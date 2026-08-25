@@ -12,12 +12,15 @@ import type { Player } from './player.ts'
 
 /**
  * 우선순위가 곧 규칙이다.
- *   공격 > 공중 > 착지 > 웅크리기 > 걷기 > 대기
+ *   피격 > 공격 > 공중 > 착지 > 웅크리기 > 걷기 > 대기
  *
- * 공격이 가장 위인 것은 후딜 중에도 이동이 되기 때문이다 —
+ * 피격이 가장 위인 것은 **맞았다는 사실이 가장 먼저 읽혀야** 하기 때문이다.
+ * 공격이 그다음인 것은 후딜 중에도 이동이 되기 때문이다 —
  * 걷는 동안에도 던지는 동작이 보여야 한다.
  */
 export function nextClip(player: Player, current: ClipState): ClipName {
+  // 피격 클립은 단발이다. 시작했으면 무엇도 끊지 못한다.
+  if (current.name === 'hurt' && !current.finished) return 'hurt'
   if (isBusy(player.attack)) return 'attack'
   if (!player.body.onGround) return 'jump'
   if (player.landed) return 'land'

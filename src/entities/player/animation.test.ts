@@ -99,3 +99,18 @@ describe('프레임 선택', () => {
     expect(frameFor(make({}, { vx: 110 }), walking)).toBe(5)
   })
 })
+
+describe('피격 우선순위', () => {
+  it('피격 클립은 무엇도 끊지 못한다 — 맞았다는 사실이 가장 먼저 읽혀야 한다', () => {
+    const hurting: ClipState = { ...startClip('hurt'), frame: 1, finished: false }
+    // 공격 중이어도, 공중이어도, 웅크려도 피격이 이긴다
+    expect(nextClip(make({ attack: { ...IDLE_ATTACK, startup: 2 } }), hurting)).toBe('hurt')
+    expect(nextClip(make({}, { onGround: false }), hurting)).toBe('hurt')
+    expect(nextClip(make({ crouching: true }), hurting)).toBe('hurt')
+  })
+
+  it('끝나면 평소 클립으로 돌아간다', () => {
+    const done: ClipState = { ...startClip('hurt'), frame: 2, finished: true }
+    expect(nextClip(make({}, { vx: 110 }), done)).toBe('walk')
+  })
+})
