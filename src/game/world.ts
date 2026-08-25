@@ -13,6 +13,9 @@ import {
   type HazardWorld,
 } from '../entities/bosses/hazard.ts'
 import {
+  createChest, stepChest, strikeChest, takeChest, type Chest,
+} from '../entities/pickups/chest.ts'
+import {
   boxOfEnemy, createEnemy, damage, pruneEnemies, tickFlash, touches,
   type Enemy, type EnemyKind,
 } from '../entities/enemies/enemy.ts'
@@ -22,7 +25,7 @@ import { stepGrimm } from '../entities/enemies/grimm.ts'
 import { nextClip } from '../entities/player/animation.ts'
 import { createPlayer, stepPlayer, type Player } from '../entities/player/player.ts'
 import {
-  createVitals, fallIntoPit, respawn, speedMultiplier, takeHit, tickVitals,
+  createVitals, fallIntoPit, pickUpRelic, respawn, speedMultiplier, takeHit, tickVitals,
   isInvulnerable, isGameOver, continueGame, type Vitals,
 } from '../entities/player/vitals.ts'
 import {
@@ -58,6 +61,8 @@ export interface World {
   readonly cairn: Cairn
   /** 보스가 내보낸 위험물 — 묘비·낙석. 플레이어를 때린다 */
   readonly hazards: HazardWorld
+  /** 보물상자. 무기와 성유물의 유일한 획득 경로다 */
+  readonly chests: readonly Chest[]
   readonly camera: Camera
   readonly weaponId: string
   readonly rng: RngState
@@ -96,6 +101,10 @@ export interface WorldEvents {
   readonly landed: boolean
   /** 그림이 대기에서 풀려 날아오르기 시작했다 */
   readonly grimmTookOff: boolean
+  /** 이번 틱에 상자를 열었다 */
+  readonly chestOpened: boolean
+  /** 이번 틱에 주운 것. 없으면 null */
+  readonly pickedUp: 'weapon' | 'relic' | null
   /** 이번 틱에 잔기를 다 썼다. 한 번만 뜬다 */
   readonly gameOver: boolean
   /** `hurt` 또는 `died` 일 때만 채워진다. */
@@ -105,7 +114,7 @@ export interface WorldEvents {
 const NO_EVENTS: WorldEvents = Object.freeze({
   armorBroke: false, died: false, hurt: false, enemiesKilled: 0,
   bossHit: 0, bossKilled: false, quake: false, fired: false, landed: false,
-  grimmTookOff: false, gameOver: false, cause: null,
+  grimmTookOff: false, chestOpened: false, pickedUp: null, gameOver: false, cause: null,
 })
 
 /**
@@ -162,6 +171,8 @@ export function createWorld(stage: Stage, balance: Balance, seed = 20260825): Wo
     enemies,
     cairn: createCairn(bossX, (stage.map.height - 1) * size - 52, createRng(seed + 7)),
     hazards: EMPTY_HAZARDS,
+    chests: stage.chests.map((spawn, i) =>
+      createChest(i + 1, spawn.tx, spawn.ty, spawn.contents, size)),
     camera: snapCamera({ x: player.body.x, y: player.body.y, facing: 0, falling: false },
       boundsOf(stage)),
     weaponId: 'lance',
@@ -275,6 +286,8 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   let killed = 0
   let bossHit = 0
   let bossKilled = false
+  let chests = world.chests.map(stepChest)
+  let chestOpened = false
 
   for (const shot of shots.projectiles) {
     const box = boxOfProjectile(shot)
@@ -298,13 +311,41 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
         consumed = true
       }
     }
+    // 상자는 때려야 열린다. 투사체는 그대로 살아남는다 — 상자에 막혀
+    // 뒤의 적을 못 때리면 "때려서 열기" 가 벌칙이 된다.
+    if (!consumed) {
+      chests = chests.map((chest) => {
+        const struck = strikeChest(chest, box)
+        if (struck !== chest) chestOpened = true
+        return struck
+      })
+    }
+
     if (!consumed) survivors.push(shot)
   }
   shots = { ...shots, projectiles: survivors }
-  events = { ...events, enemiesKilled: killed, bossHit, bossKilled }
+  events = { ...events, enemiesKilled: killed, bossHit, bossKilled, chestOpened }
+
+  // --- 줍기 -----------------------------------------------------------------
+  let weaponId = world.weaponId
+  let pickedVitals = world.vitals
+  let pickedUp: 'weapon' | 'relic' | null = null
+  chests = chests.map((chest) => {
+    const result = takeChest(chest, playerBox)
+    if (result.taken === null) return chest
+    if (result.taken.kind === 'weapon') {
+      weaponId = result.taken.weaponId
+      pickedUp = 'weapon'
+    } else {
+      pickedVitals = pickUpRelic(pickedVitals, result.taken.relic, balance.player)
+      pickedUp = 'relic'
+    }
+    return result.chest
+  })
+  if (pickedUp !== null) events = { ...events, pickedUp }
 
   // --- 피격 -----------------------------------------------------------------
-  let vitals = tickVitals(world.vitals)
+  let vitals = tickVitals(pickedVitals)
   if (!isInvulnerable(vitals)) {
     const cause = causeOfHit(enemies, cairn, hazards, playerBox)
 
@@ -338,7 +379,8 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   return {
     world: {
       ...world,
-      map, crumble, player, vitals, clip, shots, camera, cairn, hazards, rng, nextEnemyId,
+      map, crumble, player, vitals, clip, shots, camera, cairn, hazards, chests,
+      weaponId, rng, nextEnemyId,
       enemies: pruneEnemies(enemies),
       respawnTicks: vitals.dead ? RESPAWN_DELAY_TICKS : 0,
       cleared: world.cleared || bossKilled,

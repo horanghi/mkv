@@ -129,6 +129,27 @@ export const STAGE_1: Stage = {
 
   sections: [SECTION_START.a, SECTION_START.b, SECTION_START.boss],
 
+  /**
+   * 보물상자. 때려서 열고 밟아서 줍는다.
+   *
+   * 배치는 레벨 규칙을 따른다 — 구덩이 착지 지점과 궤도 아래를 피한다
+   * (`stage1.test.ts` 가 검사한다).
+   *
+   * **성유물은 1-B 중간에 둔다.** 갑옷 파괴 연출이 이 게임의 판매 포인트인데,
+   * 성유물 → 강철 → 속옷 세 단계를 못 보면 그 연출의 절반만 보는 것이다.
+   * 보스 전에 반드시 지나는 자리여야 한다. → docs/06 6.3
+   */
+  chests: [
+    // 1-A — 첫 무기 상자. 던지기를 배운 직후, 죽을 수 없는 구간에서 바꿔 본다
+    { tx: 44, ty: 15, contents: { kind: 'weapon', weaponId: 'dagger' } },
+    // 1-B 초입 — 도끼. 느리고 무겁다. 그림이 나오기 전에 고를 기회를 준다
+    { tx: SECTION_START.b + 6, ty: 15, contents: { kind: 'weapon', weaponId: 'axe' } },
+    // 1-B 중간 — 성유물 갑옷. 보스룸 전에 반드시 지난다
+    { tx: SECTION_START.b + 34, ty: 15, contents: { kind: 'relic', relic: 'gold' } },
+    // 보스룸 직전 — 창으로 되돌릴 기회. "선택은 되돌릴 수 있다" → docs/03 3.1
+    { tx: SECTION_START.boss - 8, ty: 15, contents: { kind: 'weapon', weaponId: 'lance' } },
+  ],
+
   enemies: [
     // 1-A — 좀비 3마리뿐이다. docs/04 의 구성 그대로다.
     //

@@ -355,3 +355,59 @@ describe('그림 이륙 신호', () => {
     expect(stepWorld(fresh(), INITIAL_INPUT, balance).events.grimmTookOff).toBe(false)
   })
 })
+
+describe('보물상자 — 무기와 성유물의 유일한 획득 경로', () => {
+  /** 상자 앞에 서서 창을 던지고, 열리면 걸어가 줍는다. */
+  function openAndTake(index: number): World {
+    let w = fresh()
+    const chest = w.chests[index]!
+    // 상자 왼쪽에 선다
+    const standX = chest.x - 40
+    let input = INITIAL_INPUT
+
+    for (let i = 0; i < 400; i += 1) {
+      const target = w.chests[index]!
+      if (target.state === 'taken') break
+
+      // 열기 전에는 제자리에서 던지고, 열린 뒤에는 걸어가 밟는다
+      const walking = target.state !== 'closed'
+      w = walking ? w : {
+        ...w,
+        player: { ...w.player, facing: 1, body: { ...w.player.body, x: standX, vx: 0 } },
+      }
+      input = advanceInput(input, walking ? frameOf('right') : (i % 8 < 4 ? frameOf('attack') : 0))
+      const step = stepWorld(w, input, balance)
+      w = step.world
+      input = step.input
+    }
+    return w
+  }
+
+  it('창으로 때리면 열린다', () => {
+    const w = openAndTake(0)
+    expect(w.chests[0]!.state).toBe('taken')
+  })
+
+  it('무기 상자를 주우면 무기가 바뀐다', () => {
+    const w = openAndTake(0)
+    const contents = STAGE_1.chests[0]!.contents
+    expect(contents.kind).toBe('weapon')
+    if (contents.kind === 'weapon') expect(w.weaponId).toBe(contents.weaponId)
+    expect(w.weaponId).not.toBe('lance')
+  })
+
+  it('성유물 상자를 주우면 금빛 갑옷을 입는다 — 판매 포인트를 볼 수 있어야 한다', () => {
+    const index = STAGE_1.chests.findIndex((c) => c.contents.kind === 'relic')
+    expect(index).toBeGreaterThanOrEqual(0)
+
+    const w = openAndTake(index)
+    expect(w.chests[index]!.state).toBe('taken')
+    expect(w.vitals.armor).toBe('relic')
+    expect(w.vitals.relic).toBe('gold')
+  })
+
+  it('처음에는 아무 상자도 열려 있지 않다', () => {
+    expect(fresh().chests.every((c) => c.state === 'closed')).toBe(true)
+    expect(fresh().chests.length).toBe(STAGE_1.chests.length)
+  })
+})

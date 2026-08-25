@@ -12,6 +12,7 @@ import { frameFor } from './entities/player/animation.ts'
 import { emitsLight, isBlinking, isInvulnerable, pickUpRelic, spriteStateOf, takeHit } from './entities/player/vitals.ts'
 import { bodyBox, coreBox, isCoreExposed } from './entities/bosses/cairn.ts'
 import { boxOfHazard } from './entities/bosses/hazard.ts'
+import { boxOfChest, boxOfItem } from './entities/pickups/chest.ts'
 import { boxOfEnemy } from './entities/enemies/enemy.ts'
 import { NO_ABERRATION, pixelOffset, step as stepAberration, trigger as triggerAberration } from './fx/aberration.ts'
 import { skeletonizeFrame } from './fx/dissolve.ts'
@@ -205,7 +206,8 @@ const greybox = new GreyboxRenderer(stageRoot)
 const enemyGfx = new Graphics()
 const bossGfx = new Graphics()
 const hazardGfx = new Graphics()
-stageRoot.addChild(bossGfx, hazardGfx)
+const chestGfx = new Graphics()
+stageRoot.addChild(chestGfx, bossGfx, hazardGfx)
 const enemyRenderer = new EnemyRenderer(stageRoot)
 const cairnRenderer = new CairnRenderer(stageRoot)
 stageRoot.addChild(enemyGfx)
@@ -423,6 +425,9 @@ app.ticker.add(() => {
     if (result.events.grimmTookOff) sfx.play('grimmTakeoff')
     if (result.events.bossKilled) sfx.play('clear')
     if (result.events.gameOver) { sfx.play('death'); music = silence(music, 600) }
+    if (result.events.chestOpened) sfx.play('menu')
+    if (result.events.pickedUp === 'relic') sfx.play('relic')
+    if (result.events.pickedUp === 'weapon') sfx.play('throw')
 
     // 보스 등장 — 0.3초 무음. 소리가 사라지면 사람은 화면을 본다.
     if (!bossSeen && world.cairn.awake) {
@@ -466,6 +471,7 @@ app.ticker.add(() => {
 
   // --- 그리기 ---------------------------------------------------------------
   parallax.update(world.camera.x, world.camera.y, now / 1000)
+  drawChests()
   greybox.drawTerrain(world.map, world.crumble)
   greybox.drawProjectiles(world.shots.projectiles)
   greybox.drawBodies(showDebugBoxes ? [world.player.body] : [])
@@ -559,6 +565,37 @@ app.ticker.add(() => {
     cause: causeThisFrame,
   })
 })
+
+/**
+ * 보물상자와 떠오른 내용물.
+ *
+ * 무기 상자는 은빛, 성유물 상자는 금빛이다. **열기 전부터 구분된다** —
+ * 성유물이 어디 있는지 보고 갈지 말지 정할 수 있어야 한다.
+ * → docs/03 3.1 "선택은 되돌릴 수 있다"
+ */
+function drawChests(): void {
+  const g = chestGfx.clear()
+  for (const chest of world.chests) {
+    const relic = chest.contents.kind === 'relic'
+    const body = relic ? 0x8a5f14 : 0x5f6e85
+    const lid = relic ? 0xf0c04a : 0xb9c6d8
+
+    if (chest.state !== 'taken') {
+      const box = boxOfChest(chest)
+      g.rect(Math.round(box.x), Math.round(box.y), box.width, box.height).fill(body)
+      // 뚜껑. 열리면 젖혀진 것으로 읽히게 위쪽만 남긴다
+      const lidHeight = chest.state === 'closed' ? 4 : 2
+      g.rect(Math.round(box.x), Math.round(box.y), box.width, lidHeight).fill(lid)
+    }
+
+    const item = boxOfItem(chest)
+    if (item) {
+      g.rect(Math.round(item.x), Math.round(item.y), item.width, item.height).fill(lid)
+      g.rect(Math.round(item.x) + 2, Math.round(item.y) + 2, item.width - 4, item.height - 4)
+        .fill(relic ? 0xfff6d0 : 0xedf2fa)
+    }
+  }
+}
 
 function drawEnemies(): void {
   enemyRenderer.draw(world.enemies, loop.tick)

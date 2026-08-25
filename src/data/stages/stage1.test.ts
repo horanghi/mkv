@@ -139,3 +139,47 @@ describe('스테이지 1 배치 규칙 — docs/04', () => {
     expect(STAGE_1.bossGateX).toBeLessThan(MAP.width * SIZE)
   })
 })
+
+describe('보물상자 배치 — docs/04 4.4', () => {
+  it('무기 상자가 3~4개다', () => {
+    const weapons = STAGE_1.chests.filter((c) => c.contents.kind === 'weapon')
+    expect(weapons.length).toBeGreaterThanOrEqual(3)
+    expect(weapons.length).toBeLessThanOrEqual(4)
+  })
+
+  it('성유물 상자는 스테이지당 하나다', () => {
+    expect(STAGE_1.chests.filter((c) => c.contents.kind === 'relic')).toHaveLength(1)
+  })
+
+  it('성유물은 보스룸 전에 반드시 지나는 자리에 있다', () => {
+    // 갑옷 파괴 연출이 판매 포인트인데, 성유물 → 강철 → 속옷 세 단계를
+    // 못 보면 그 연출의 절반만 보는 것이다. → docs/06 6.3
+    const relic = STAGE_1.chests.find((c) => c.contents.kind === 'relic')!
+    expect(relic.tx).toBeLessThan(SECTION_START.boss)
+    expect(relic.tx).toBeGreaterThan(SECTION_START.b)
+  })
+
+  it('상자가 지면 위에 놓인다 — 공중에 뜨거나 벽에 박히지 않는다', () => {
+    for (const chest of STAGE_1.chests) {
+      expect([chest.tx, tileAt(MAP, chest.tx, chest.ty + 1)]).toEqual([chest.tx, TILE.solid])
+      expect([chest.tx, tileAt(MAP, chest.tx, chest.ty)]).toEqual([chest.tx, TILE.empty])
+    }
+  })
+
+  it('구덩이 착지 지점에 상자를 두지 않는다 — 착지 순간에 열 수 없다', () => {
+    const landings = groundGaps().map((gap) => gap.start + gap.length)
+    for (const chest of STAGE_1.chests) {
+      for (const landing of landings) {
+        const distance = chest.tx - landing
+        expect([chest.tx, landing, distance >= 0 && distance < 3])
+          .toEqual([chest.tx, landing, false])
+      }
+    }
+  })
+
+  it('첫 무기 상자가 1-A 안에 있다 — 죽을 수 없는 구간에서 바꿔 본다', () => {
+    const first = [...STAGE_1.chests].sort((a, b) => a.tx - b.tx)[0]!
+    expect(first.tx).toBeLessThan(SECTION_START.b)
+    expect(first.contents.kind).toBe('weapon')
+  })
+})

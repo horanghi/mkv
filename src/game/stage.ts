@@ -1,5 +1,6 @@
 import { TILE, createTilemap, type TileKind, type Tilemap } from '../physics/tilemap.ts'
 import type { EnemyKind } from '../entities/enemies/enemy.ts'
+import type { ChestContents } from '../entities/pickups/chest.ts'
 
 /**
  * 스테이지 데이터와 로더.
@@ -24,6 +25,12 @@ export interface Checkpoint {
   readonly label: string
 }
 
+export interface ChestSpawn {
+  readonly tx: number
+  readonly ty: number
+  readonly contents: ChestContents
+}
+
 export interface Stage {
   readonly id: string
   readonly name: string
@@ -31,6 +38,8 @@ export interface Stage {
   readonly spawn: { readonly tx: number; readonly ty: number }
   readonly checkpoints: readonly Checkpoint[]
   readonly enemies: readonly EnemySpawn[]
+  /** 보물상자. 때려서 열고 밟아서 줍는다 → docs/04 4.4 */
+  readonly chests: readonly ChestSpawn[]
   /**
    * 구간 경계의 타일 x. 첫 값은 0 이다.
    *
