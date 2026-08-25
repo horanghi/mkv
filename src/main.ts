@@ -1,4 +1,4 @@
-import { Application, Container, TextureSource } from 'pixi.js'
+import { Application, Container, Sprite, TextureSource } from 'pixi.js'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_SECONDS } from './core/config.ts'
 import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/input.ts'
 import { KeyboardSource } from './core/keyboard.ts'
@@ -6,6 +6,7 @@ import { INITIAL_LOOP, advance, requestHitstop, type LoopState } from './core/lo
 import { computeViewport } from './core/viewport.ts'
 import { loadBalance, requireWeapon } from './data/load.ts'
 import { simulateJumpArc } from './entities/player/arc.ts'
+import { frameFor, nextClip } from './entities/player/animation.ts'
 import { createPlayer, stepPlayer, type Player } from './entities/player/player.ts'
 import {
   EMPTY_WORLD,
@@ -23,6 +24,9 @@ import {
 } from './physics/crumble.ts'
 import { boxOf } from './physics/body.ts'
 import { parseTilemap, type Tilemap } from './physics/tilemap.ts'
+import { ARMOR_STATES, type ArmorState } from './sprite/armor.ts'
+import { advanceClip, playClip, startClip, type ClipState } from './sprite/clip.ts'
+import { SpriteSheet } from './render/spriteTexture.ts'
 import { GreyboxRenderer } from './render/debug/greybox.ts'
 import { ControlHint } from './render/debug/hint.ts'
 import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
@@ -119,6 +123,18 @@ let player: Player = createPlayer(SPAWN.x, SPAWN.y, balance.player)
 let shots: ProjectileWorld = EMPTY_WORLD
 let showArc = DEV
 
+// --- 스프라이트 -----------------------------------------------------------------
+const sheet = new SpriteSheet()
+sheet.warmUp(ARMOR_STATES, ['idle', 'walk', 'jump', 'crouch', 'land'], 'lance')
+
+const lancel = new Sprite(sheet.frame('steel', 'idle', 0))
+// 앵커는 아래 가운데. 스프라이트 세로 중심선이 x16 이라 좌우 반전이 대칭이 된다.
+lancel.anchor.set(0.5, 1)
+scene.addChild(lancel)
+
+let clip: ClipState = startClip('idle')
+let armor: ArmorState = 'steel'
+
 /** M0 의 유일한 무기. 나머지 6종은 M2 다. */
 const LANCE = requireWeapon(balance, 'lance')
 
@@ -132,6 +148,7 @@ function reset(): void {
   crumble = resetCrumble()
   player = createPlayer(SPAWN.x, SPAWN.y, balance.player)
   shots = EMPTY_WORLD
+  clip = startClip('idle')
 }
 
 function stepWorld(input: InputState): InputState {
@@ -153,6 +170,8 @@ function stepWorld(input: InputState): InputState {
 
   // 구덩이에 빠지면 되돌린다. 낙사 처리는 m1 이다.
   if (player.body.y > LOGICAL_HEIGHT) reset()
+
+  clip = advanceClip(playClip(clip, nextClip(player, clip)), TICK_SECONDS * 1000)
 
   return stepped.input
 }
@@ -214,7 +233,18 @@ app.ticker.add(() => {
     player.facing,
   )
   greybox.drawProjectiles(shots.projectiles)
-  greybox.drawBodies([player.body])
+  // 히트박스는 디버그에서만. 평소에는 스프라이트가 캐릭터를 대신한다.
+  greybox.drawBodies(showArc ? [player.body] : [])
+
+  lancel.texture = sheet.frame(
+    armor,
+    clip.name,
+    frameFor(player, clip),
+    clip.name === 'attack' ? 'lance' : undefined,
+  )
+  lancel.scale.x = player.facing
+  lancel.x = Math.round(player.body.x + player.body.width / 2)
+  lancel.y = Math.round(player.body.y + player.body.height) + 1
 
   const metrics: DebugMetrics = {
     fps,
@@ -226,7 +256,7 @@ app.ticker.add(() => {
     alpha: stepped.alpha,
     hitstopMs: loop.hitstopMs,
     entities: 1 + shots.projectiles.length,
-    state: player.state,
+    state: `${player.state} · ${clip.name}[${frameFor(player, clip)}] · ${armor}`,
     velocity: [player.body.vx, player.body.vy],
     coyoteFrames: player.timers.coyoteFrames,
     jumpBufferFrames: input.buffers.jump,
@@ -254,6 +284,11 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault()
     showArc = !showArc
   }
+  if (e.key === 'F3') {
+    // 재생 중에 갑옷을 바꿔도 프레임 인덱스가 그대로인지 눈으로 확인한다.
+    e.preventDefault()
+    armor = ARMOR_STATES[(ARMOR_STATES.indexOf(armor) + 1) % ARMOR_STATES.length] ?? 'steel'
+  }
 })
 
 // --- 개발 핸들 ---------------------------------------------------------------
@@ -263,7 +298,10 @@ if (DEV) {
       app,
       arc: ARC,
       reset,
+      sheet,
       snapshot: () => ({
+        clip,
+        armor,
         tick: loop.tick,
         hitstopMs: loop.hitstopMs,
         input,

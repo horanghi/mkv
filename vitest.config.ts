@@ -17,6 +17,7 @@ export default defineConfig({
         branches: 80,
         statements: 80,
         'src/physics/**': { lines: 95, functions: 95, branches: 95, statements: 95 },
+        'src/sprite/**': { lines: 95, functions: 95, branches: 95, statements: 95 },
         'src/entities/**': { lines: 85, functions: 85, branches: 85, statements: 85 },
         'src/game/**': { lines: 85, functions: 85, branches: 85, statements: 85 },
       },

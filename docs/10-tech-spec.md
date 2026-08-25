@@ -49,16 +49,24 @@ src/
     tilemap.ts    # 타일 충돌 질의
     body.ts       # 물리 바디 (불변 업데이트)
   entities/
-    player/       # 랜슬 상태 머신
+    player/       # 랜슬 상태 머신 + 애니메이션 매핑
     enemies/      # 적 14종
     bosses/       # 보스 7종
     projectiles/  # 투사체
+  sprite/         # 도트 매트릭스 (순수 데이터 — 렌더러를 모른다)
+    matrix.ts     # 검증 · 스탬프
+    lancel.ts     # 파츠 3세트 · 무기 7종
+    palette.ts    # 팔레트 4종
+    pose.ts       # 파츠 조립
+    clip.ts       # 클립 8종 · 재생 상태
+    armor.ts      # 교체 축 (팔레트 · 파츠셋)
   render/
     layers.ts     # 8층 레이어 관리
     parallax.ts
     lighting.ts   # 2D 동적 광원
     postfx/       # 셰이더 스택
     particles.ts
+    spriteTexture.ts  # 매트릭스 → PixiJS 텍스처 (캐시)
   game/
     state.ts      # 게임 상태 (불변)
     stage.ts      # 스테이지 로더
@@ -253,6 +261,7 @@ function updateBody(body: Body, dt: number): Body {
 | `physics/` | 95% |
 | `game/`, `entities/` 상태 머신 | 85% |
 | 전체 | 80% |
+| `sprite/` | 95% — 순수 데이터라 전부 검증 가능하다 |
 | `render/` | 제외 (시각 검증으로 대체) |
 
 ---
