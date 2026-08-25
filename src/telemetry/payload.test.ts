@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { DamageCause } from '../game/world.ts'
 import { EMPTY_FRAMES, WARMUP_FRAMES, pushFrame } from './frames.ts'
 import { NOTE_LIMIT, toJson, toPayload } from './payload.ts'
 import {
@@ -75,6 +76,8 @@ describe('세션 식별자', () => {
   })
 })
 
+const CAUSES: readonly DamageCause[] = ['ghoul', 'grimm', 'corvid', 'cairn', 'pit']
+
 describe('붙여넣기 가능한 크기', () => {
   it('많이 죽어도 메신저에 붙일 만하다', () => {
     // 지독하게 오래 붙든 테스터: 스테이지 전역에서 50번 사망 + 최대 길이 메모
@@ -83,7 +86,7 @@ describe('붙여넣기 가능한 크기', () => {
       const at = i * 20000
       // 164타일 스테이지 전역에 흩뿌린다 → 사망 구간이 최대로 쪼개진다
       const x = (i * 53) % (164 * 16)
-      const cause = (['ghoul', 'grimm', 'corvid', 'cairn', 'pit'] as const)[i % 5]
+      const cause = CAUSES[i % CAUSES.length] ?? 'pit'
       s = noteInput(noteControlBack(noteDeath(s, x, cause, at), at + 1500), at + 1700)
     }
     s = answerSurvey(noteClear(s, 1_200_000), {
