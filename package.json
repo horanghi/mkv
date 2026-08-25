@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "deploy": "vercel deploy --prod",
     "size": "node scripts/check-size.mjs",
-    "gate": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/gate-report.mjs"
+    "gate": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/gate-report.mjs",
+    "unused": "node scripts/unused-exports.mjs"
   },
   "engines": {
     "node": ">=20.19"

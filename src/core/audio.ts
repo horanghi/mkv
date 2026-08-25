@@ -156,7 +156,12 @@ export function gainsOf(state: MusicState): StemMix {
 
 // ── 프리로드 ────────────────────────────────────────────────────────────────
 
-/** 보스 BGM 은 보스룸 30초 전에 로드한다. 문 앞에서 멈추면 순간이 죽는다. */
+/**
+ * 보스 BGM 은 보스룸 30초 전에 로드한다. 문 앞에서 멈추면 순간이 죽는다.
+ *
+ * **아직 아무도 부르지 않는다.** 지금 BGM 은 음원 파일이 아니라 합성이라
+ * 로드할 것이 없다. 파일이 생기면 이 자리에서 걸어 준다. → docs/07 7.2
+ */
 export const BOSS_PRELOAD_DISTANCE_PX = 30 * 110
 
 export function shouldPreloadBoss(playerX: number, bossGateX: number): boolean {

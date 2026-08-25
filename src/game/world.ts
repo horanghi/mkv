@@ -1,7 +1,6 @@
 import { TICK_SECONDS } from '../core/config.ts'
 import { createRng, nextFloat, type RngState } from '../core/rng.ts'
 import type { InputState } from '../core/input.ts'
-import { isDown } from '../core/input.ts'
 import type { Balance } from '../data/load.ts'
 import { requireWeapon } from '../data/load.ts'
 import {
@@ -493,7 +492,3 @@ export function continueFrom(world: World, balance: Balance): World {
   }
 }
 
-/** 디버그 — 재시작 요청인가. */
-export function wantsRestart(input: InputState): boolean {
-  return isDown(input.pressed, 'restart')
-}

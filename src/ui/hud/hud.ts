@@ -108,7 +108,3 @@ export function deathToPlayableMs(): number {
   return DEATH_TIMELINE.playableAtMs
 }
 
-/** 게임 오버 화면은 잔기가 0 일 때만 뜬다. 남아 있으면 바로 다시 한다. */
-export function showsGameOver(vitals: Vitals): boolean {
-  return vitals.dead && vitals.lives <= 0
-}

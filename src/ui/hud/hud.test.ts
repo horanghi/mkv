@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadBalance } from '../../data/load.ts'
-import { createVitals, pickUpRelic, type Vitals } from '../../entities/player/vitals.ts'
+import { createVitals, pickUpRelic } from '../../entities/player/vitals.ts'
 import {
   AUTO_DIM,
   DEATH_TIMELINE,
@@ -10,7 +10,6 @@ import {
   formatScore,
   formatTime,
   isTimeCritical,
-  showsGameOver,
   stepHud,
 } from './hud.ts'
 
@@ -105,9 +104,4 @@ describe('사망 → 리스폰 — 3초 예산', () => {
     expect(t.playableAtMs).toBe(t.moveAtMs + t.fadeMs)
   })
 
-  it('잔기가 남아 있으면 게임 오버 화면이 뜨지 않는다', () => {
-    const dead: Vitals = { ...vitals, dead: true, lives: 2 }
-    expect(showsGameOver(dead)).toBe(false)
-    expect(showsGameOver({ ...dead, lives: 0 })).toBe(true)
-  })
 })
