@@ -46,7 +46,10 @@ src/
     loop.ts       # 픽스드 타임스텝 루프
     input.ts      # 입력 폴링 + 버퍼
     assets.ts     # 로더, 지연 로딩 관리
-    audio.ts      # Howler 래퍼, 스템 믹싱
+    audio.ts      # 스템 믹싱 · 더킹 · 저역통과 상태
+    bgmPattern.ts # S1 왈츠 패턴 (순수 데이터)
+    bgm.ts        # WebAudio 합성 드라이버
+    sfx.ts        # WebAudio 합성 SFX
     save.ts       # localStorage + 내보내기/불러오기
   physics/
     aabb.ts       # AABB 스윕 콜리전
@@ -300,6 +303,7 @@ function updateBody(body: Body, dt: number): Body {
 | `telemetry/` | 95% — 게이트 판정의 근거라 틀리면 프로젝트가 잘못된 방향으로 간다 |
 | `scenery/` | 95% (분기 70%) — 남은 분기는 `noUncheckedIndexedAccess` 가 강제하는 도달 불가 가드다 |
 | `ui/` | 제외 (시각 검증으로 대체) |
+| `core/bgm.ts`, `core/sfx.ts` | 제외 — WebAudio 는 node 에서 돌지 않는다. 오프라인 렌더로 실측한다 (docs/07 7.2) |
 
 ---
 

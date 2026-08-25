@@ -67,6 +67,16 @@ export class Sfx {
     if (this.master) this.master.gain.value = Math.max(0, Math.min(1, value))
   }
 
+  /**
+   * BGM 이 같은 컨텍스트를 쓰도록 내준다.
+   *
+   * 컨텍스트를 둘 만들면 브라우저마다 하나만 깨어나거나, 둘 다 깨어도
+   * 시계가 달라 스케줄이 어긋난다. 소리를 내는 곳은 하나여야 한다.
+   */
+  get context(): AudioContext | null {
+    return this.ctx
+  }
+
   play(name: SfxName): void {
     const ctx = this.ctx
     const master = this.master

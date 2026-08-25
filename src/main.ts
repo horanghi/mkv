@@ -34,8 +34,9 @@ import { S1_PALETTE } from './scenery/stage1.ts'
 import { SpriteSheet, matrixToTexture } from './render/spriteTexture.ts'
 import { HudRenderer } from './render/hudRenderer.ts'
 import { Sfx } from './core/sfx.ts'
+import { Bgm } from './core/bgm.ts'
 import {
-  DUCK, INITIAL_MUSIC, duckMusic, gainsOf, silence, stepMusic, type MusicState,
+  DUCK, INITIAL_MUSIC, duckMusic, silence, stepMusic, type MusicState,
 } from './core/audio.ts'
 import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
 import { Playtest } from './ui/report/playtest.ts'
@@ -139,6 +140,14 @@ const hudLayer = new Container()
 app.stage.addChild(hudLayer)
 const hudRenderer = new HudRenderer(hudLayer)
 const sfx = new Sfx()
+/**
+ * BGM.
+ *
+ * 음원 파일이 없어 합성으로 낸다. 무음인 채로 "화려한가"를 물을 수 없다.
+ * SFX 와 **같은 AudioContext** 를 쓴다 — 둘을 만들면 시계가 달라 어긋난다.
+ * → docs/07-audio.md 7.2, prompts/m1-gate.md
+ */
+const bgm = new Bgm()
 const director = new BreakDirector(20260825)
 
 const relicGlow = new Sprite(Texture.WHITE)
@@ -357,7 +366,9 @@ app.ticker.add(() => {
     armor: spriteStateOf(world.vitals),
     secondsLeft,
   }, frameMs)
-  sfx.setVolume(0.6 * gainsOf(music).rhythm)
+  // 첫 입력에서 컨텍스트가 깨어난 뒤에야 붙는다. 이미 붙었으면 아무 일도 안 한다.
+  bgm.attach(sfx.context)
+  bgm.update(music)
 
   overlay.render(metricsOf(frameMs))
 

@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitest/config'
 
 // 커버리지 목표는 docs/10-tech-spec.md 10.9 를 따른다.
-// render/ 와 ui/ 는 시각 검증으로 대체하므로 계측에서 제외한다.
+// render/ 와 ui/ 는 시각 검증으로, 오디오 드라이버는 오프라인 렌더 실측으로
+// 대체하므로 계측에서 제외한다. WebAudio 는 node 에서 돌지 않는다.
 export default defineConfig({
   test: {
     environment: 'node',
@@ -10,7 +11,11 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/main.ts', 'src/render/**', 'src/ui/**'],
+      exclude: [
+        'src/**/*.test.ts', 'src/main.ts', 'src/render/**', 'src/ui/**',
+        // WebAudio 드라이버. 패턴(bgmPattern.ts)은 순수 모듈로 검증한다.
+        'src/core/bgm.ts', 'src/core/sfx.ts',
+      ],
       thresholds: {
         lines: 80,
         functions: 80,
