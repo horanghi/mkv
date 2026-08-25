@@ -1,40 +1,22 @@
+import { SFX_SPECS, type SfxLayer, type SfxName, type SfxSpec } from './sfxSpec.ts'
+
 /**
  * SFX 드라이버 — WebAudio 합성.
  *
- * **음원 파일이 아직 없다.** docs/07 이 정한 40종을 만들기 전까지,
- * 게임이 무음이면 손맛을 평가할 수 없으므로 간단한 합성음으로 대신한다.
+ * **음원 파일이 아직 없다.** docs/07 이 정한 143종을 만들기 전까지,
+ * 게임이 무음이면 손맛을 평가할 수 없으므로 합성으로 대신한다.
  * 믹싱 로직(`core/audio.ts`)은 완성돼 있고, 여기만 파일 재생으로 바뀐다.
- * → docs/07-audio.md 7.5
+ *
+ * 레이어 구성은 `sfxSpec.ts` 가 정한다 — 갑옷 파괴처럼 중요한 소리는
+ * 여러 겹이 시차를 두고 쌓여야 한다. → docs/07-audio.md 7.5
+ *
+ * 계측 대상이 아니다 — WebAudio 는 node 에서 돌지 않는다. 명세는 순수 모듈에서 검증한다.
  */
 
-export type SfxName =
-  | 'jump' | 'land' | 'throw' | 'hit' | 'enemyDie'
-  | 'armorBreak' | 'death' | 'relic' | 'bossHit' | 'quake'
+export type { SfxName }
 
-interface SfxSpec {
-  /** 시작 주파수 */
-  readonly hz: number
-  /** 끝 주파수. 없으면 고정. */
-  readonly toHz?: number
-  readonly ms: number
-  readonly type: OscillatorType
-  readonly gain: number
-  /** 노이즈를 섞는다. 타격음에 쓴다. */
-  readonly noise?: number
-}
-
-const SPECS: Readonly<Record<SfxName, SfxSpec>> = {
-  jump: { hz: 320, toHz: 620, ms: 90, type: 'square', gain: 0.10 },
-  land: { hz: 180, toHz: 90, ms: 70, type: 'triangle', gain: 0.08 },
-  throw: { hz: 700, toHz: 380, ms: 70, type: 'sawtooth', gain: 0.07 },
-  hit: { hz: 220, toHz: 120, ms: 90, type: 'square', gain: 0.12, noise: 0.5 },
-  enemyDie: { hz: 260, toHz: 70, ms: 180, type: 'sawtooth', gain: 0.11, noise: 0.4 },
-  armorBreak: { hz: 900, toHz: 110, ms: 380, type: 'sawtooth', gain: 0.18, noise: 0.7 },
-  death: { hz: 420, toHz: 50, ms: 700, type: 'triangle', gain: 0.2, noise: 0.3 },
-  relic: { hz: 520, toHz: 1040, ms: 320, type: 'sine', gain: 0.12 },
-  bossHit: { hz: 150, toHz: 90, ms: 120, type: 'square', gain: 0.13, noise: 0.6 },
-  quake: { hz: 90, toHz: 40, ms: 420, type: 'sine', gain: 0.22, noise: 0.5 },
-}
+/** 노이즈 버퍼 길이 (초). 가장 긴 레이어보다 길어야 잘리지 않는다. */
+const NOISE_SECONDS = 1
 
 export class Sfx {
   private ctx: AudioContext | null = null
@@ -47,7 +29,8 @@ export class Sfx {
       if (this.ctx.state === 'suspended') void this.ctx.resume()
       return
     }
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    const Ctor = window.AudioContext
+      ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Ctor) return
 
     this.ctx = new Ctor()
@@ -55,8 +38,8 @@ export class Sfx {
     this.master.gain.value = 0.6
     this.master.connect(this.ctx.destination)
 
-    // 노이즈 한 번만 굽는다. 매번 만들면 타격이 몰릴 때 끊긴다.
-    const length = this.ctx.sampleRate * 0.5
+    // 노이즈는 한 번만 굽는다. 매번 만들면 타격이 몰릴 때 끊긴다.
+    const length = Math.floor(this.ctx.sampleRate * NOISE_SECONDS)
     const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate)
     const data = buffer.getChannelData(0)
     for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1
@@ -78,38 +61,64 @@ export class Sfx {
   }
 
   play(name: SfxName): void {
+    const spec: SfxSpec | undefined = SFX_SPECS[name]
+    if (spec) this.playSpec(spec)
+  }
+
+  private playSpec(spec: SfxSpec): void {
     const ctx = this.ctx
     const master = this.master
     if (!ctx || !master || ctx.state !== 'running') return
 
-    const spec = SPECS[name]
     const now = ctx.currentTime
-    const seconds = spec.ms / 1000
-
-    const osc = ctx.createOscillator()
-    osc.type = spec.type
-    osc.frequency.setValueAtTime(spec.hz, now)
-    if (spec.toHz !== undefined) {
-      osc.frequency.exponentialRampToValueAtTime(Math.max(20, spec.toHz), now + seconds)
+    for (const layer of spec.layers) {
+      const repeats = Math.max(1, Math.trunc(layer.repeat ?? 1))
+      for (let i = 0; i < repeats; i += 1) {
+        const spread = i * (layer.repeatSpreadMs ?? 0)
+        this.playLayer(ctx, master, layer, now + (layer.delayMs + spread) / 1000)
+      }
     }
+  }
+
+  private playLayer(ctx: AudioContext, master: GainNode, layer: SfxLayer, at: number): void {
+    const seconds = layer.ms / 1000
+    const end = at + seconds
 
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(spec.gain, now)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds)
+    gain.gain.setValueAtTime(layer.gain, at)
+    gain.gain.exponentialRampToValueAtTime(0.0001, end)
 
-    osc.connect(gain).connect(master)
-    osc.start(now)
-    osc.stop(now + seconds)
-
-    if (spec.noise && this.noiseBuffer) {
-      const source = ctx.createBufferSource()
-      source.buffer = this.noiseBuffer
-      const noiseGain = ctx.createGain()
-      noiseGain.gain.setValueAtTime(spec.gain * spec.noise, now)
-      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + seconds)
-      source.connect(noiseGain).connect(master)
-      source.start(now)
-      source.stop(now + seconds)
+    // 밴드패스가 노이즈를 금속·파편으로 만든다. 없으면 그냥 잡음이다.
+    let tail: AudioNode = gain
+    if (layer.filterHz !== undefined) {
+      const filter = ctx.createBiquadFilter()
+      filter.type = 'bandpass'
+      filter.frequency.value = layer.filterHz
+      filter.Q.value = layer.q ?? 1
+      gain.connect(filter)
+      tail = filter
     }
+    tail.connect(master)
+
+    if (layer.source === 'noise') {
+      const buffer = this.noiseBuffer
+      if (!buffer) return
+      const source = ctx.createBufferSource()
+      source.buffer = buffer
+      source.connect(gain)
+      source.start(at)
+      source.stop(end)
+      return
+    }
+
+    const osc = ctx.createOscillator()
+    osc.type = layer.source
+    osc.frequency.setValueAtTime(layer.hz, at)
+    if (layer.toHz !== undefined) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, layer.toHz), end)
+    }
+    osc.connect(gain)
+    osc.start(at)
+    osc.stop(end)
   }
 }

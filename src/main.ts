@@ -287,7 +287,10 @@ app.ticker.add(() => {
   // 다시 켤 방법이 없어진다. 누른 순간만 잡아야 하므로 직전 상태와 비교한다.
   const pauseDown = isDown(polled, 'pause')
   const menuBusy = resultsScreen.isOpen || playtest.surveyOpen
-  if (pauseDown && !prevPauseDown && !menuBusy) pauseState = togglePause(pauseState)
+  if (pauseDown && !prevPauseDown && !menuBusy) {
+    pauseState = togglePause(pauseState)
+    sfx.play('menu')
+  }
   prevPauseDown = pauseDown
   // 프레임 간격을 그대로 넣으면 안 된다. 탭에서 돌아온 첫 프레임은 수 초짜리라
   // 3-2-1 이 한 프레임에 다 소진된다 — 손을 올리기 전에 게임이 시작된다.
@@ -354,6 +357,10 @@ app.ticker.add(() => {
     if (world.player.jumped) sfx.play('jump')
     if (result.events.enemiesKilled > 0) sfx.play('enemyDie')
     if (result.events.bossHit > 0) sfx.play('bossHit')
+    // 그림 이륙음. 이 소리가 들리면 즉시 위치를 확인하게 만드는 것이 목표다.
+    // → docs/07 7.5
+    if (result.events.grimmTookOff) sfx.play('grimmTakeoff')
+    if (result.events.bossKilled) sfx.play('clear')
 
     // 보스 등장 — 0.3초 무음. 소리가 사라지면 사람은 화면을 본다.
     if (!bossSeen && world.cairn.awake) {

@@ -81,6 +81,8 @@ export interface WorldEvents {
   readonly quake: boolean
   readonly fired: boolean
   readonly landed: boolean
+  /** 그림이 대기에서 풀려 날아오르기 시작했다 */
+  readonly grimmTookOff: boolean
   /** `hurt` 또는 `died` 일 때만 채워진다. */
   readonly cause: DamageCause | null
 }
@@ -88,7 +90,7 @@ export interface WorldEvents {
 const NO_EVENTS: WorldEvents = Object.freeze({
   armorBroke: false, died: false, hurt: false, enemiesKilled: 0,
   bossHit: 0, bossKilled: false, quake: false, fired: false, landed: false,
-  cause: null,
+  grimmTookOff: false, cause: null,
 })
 
 /**
@@ -196,14 +198,22 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   const target = { x: playerBox.x + playerBox.width / 2, y: playerBox.y + playerBox.height / 2 }
   const view = viewOf(world.camera)
 
+  let grimmTookOff = false
   let enemies = world.enemies.map((enemy) => {
     const alive = tickFlash(enemy)
     switch (alive.kind) {
       case 'ghoul': return stepGhoul(alive, map, balance.player.gravityFalling, dt)
-      case 'grimm': return stepGrimm(alive, map, { target, view }, balance.player.gravityFalling, dt)
+      case 'grimm': {
+        const next = stepGrimm(alive, map, { target, view }, balance.player.gravityFalling, dt)
+        // 대기에서 풀리는 순간. 소리로 알려야 위치를 확인할 시간이 생긴다.
+        // → docs/07 7.5 "그림 이륙음은 고유하고 날카롭게"
+        if (alive.state === 'dormant' && next.state !== 'dormant') grimmTookOff = true
+        return next
+      }
       default: return stepCorvid(alive, map, target, dt)
     }
   })
+  if (grimmTookOff) events = { ...events, grimmTookOff: true }
 
   // --- 보스 -----------------------------------------------------------------
   let cairn = world.cairn

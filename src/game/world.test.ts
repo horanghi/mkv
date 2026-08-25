@@ -3,7 +3,8 @@ import { INITIAL_INPUT, advanceInput, frameOf, type Action, type InputState } fr
 import { loadBalance } from '../data/load.ts'
 import { STAGE_1 } from '../data/stages/stage1.ts'
 import { CAIRN } from '../entities/bosses/cairn.ts'
-import { createWorld, stepWorld, RESPAWN_DELAY_TICKS, type World } from './world.ts'
+import { snapCamera } from './camera.ts'
+import { boundsOf, createWorld, stepWorld, RESPAWN_DELAY_TICKS, type World } from './world.ts'
 
 const balance = loadBalance()
 
@@ -256,5 +257,40 @@ describe('사인 기록', () => {
   it('죽어 있는 동안에는 사인이 남지 않는다', () => {
     const dead: World = { ...fresh(), vitals: { ...fresh().vitals, dead: true }, respawnTicks: 30 }
     expect(stepWorld(dead, INITIAL_INPUT, balance).events.cause).toBeNull()
+  })
+})
+
+describe('그림 이륙 신호', () => {
+  it('대기에서 풀리는 순간에만 이벤트가 뜬다 — 소리로 위치를 알려야 한다', () => {
+    // 고정 점프 궤도라, 공중에서 만나면 회피할 수 없다. 뛰기 전에 알아야 한다.
+    let w = fresh()
+    const grimm = w.enemies.find((e) => e.kind === 'grimm')
+    if (grimm === undefined) throw new Error('스테이지 1 에 그림이 없다')
+
+    // 그림 바로 아래로 순간이동해 시야·반경 안에 들어간다
+    w = {
+      ...w,
+      player: {
+        ...w.player,
+        body: { ...w.player.body, x: grimm.body.x, y: grimm.body.y + 40 },
+      },
+    }
+    w = { ...w, camera: snapCamera(
+      { x: w.player.body.x, y: w.player.body.y, facing: 0, falling: false }, boundsOf(w.stage)) }
+
+    let takeoffs = 0
+    for (let i = 0; i < 30; i += 1) {
+      const step = stepWorld(w, INITIAL_INPUT, balance)
+      w = step.world
+      if (step.events.grimmTookOff) takeoffs += 1
+    }
+
+    // 한 번만. 매 틱 울리면 소리가 아니라 소음이 된다.
+    expect(takeoffs).toBe(1)
+    expect(w.enemies.find((e) => e.id === grimm.id)?.state).not.toBe('dormant')
+  })
+
+  it('아무 일 없으면 이벤트가 없다', () => {
+    expect(stepWorld(fresh(), INITIAL_INPUT, balance).events.grimmTookOff).toBe(false)
   })
 })
