@@ -2,11 +2,14 @@
 
 마계촌(Ghosts 'n Goblins) 계보의 웹 기반 하드코어 2D 액션 플랫포머.
 
-**현재 M0 (프로토타입).** 검증할 질문은 하나다 — *점프가 재미있는가?*
+**현재 M1 구현 완료, `m1-gate` 대기.** 검증할 질문은 하나다 —
+*죽고 나서 바로 다시 하는가?*
 
 ## 플레이
 
-**https://mkv-five.vercel.app** — M0 캘리브레이션 빌드 (로그인 불필요)
+**https://mkv-five.vercel.app** — 스테이지 1 (로그인 불필요)
+
+테스터에게 보낼 안내문은 [`prompts/m1-gate-testers.md`](prompts/m1-gate-testers.md) 에 있다.
 
 ## 실행
 
@@ -26,11 +29,12 @@ Node 22.17.0 (`.nvmrc`). PixiJS v8 · TypeScript 7 · Vite · Vitest.
 | `npm run typecheck` | 타입 검사만 |
 | `npm run preview` | 프로덕션 빌드를 로컬에서 확인 |
 | `npm run deploy` | Vercel 프로덕션 배포 |
+| `npm run gate` | 테스터 결과를 합쳐 게이트 판정 |
 
 > `main` 에 푸시하면 Vercel 이 자동으로 프로덕션 배포한다 (GitHub App 연동).
 > `npm run deploy` 는 푸시 없이 로컬 상태를 즉시 올릴 때만 쓴다.
 
-### 조작 (M0 캘리브레이션 빌드)
+### 조작
 
 | 키 | 동작 |
 |---|---|

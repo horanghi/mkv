@@ -42,6 +42,7 @@
 | 10 | [m1-5-stage1.md](m1-5-stage1.md) | 스테이지 1 + 캐른 + 적 3종 |
 | 11 | [m1-6-audio-hud.md](m1-6-audio-hud.md) | 적응형 4스템 BGM, HUD, 재시작 |
 | 🚦 | [m1-gate.md](m1-gate.md) | **재시도율 90%** · 미달 시 스테이지 추가 금지 |
+| 📨 | [m1-gate-testers.md](m1-gate-testers.md) | 테스터에게 그대로 보내는 글 |
 
 ## M2 — 코어 콘텐츠 (10주)
 
