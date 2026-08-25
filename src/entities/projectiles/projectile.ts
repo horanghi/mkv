@@ -36,9 +36,18 @@ export const EMPTY_WORLD: ProjectileWorld = Object.freeze({
   nextId: 1,
 })
 
-/** 창 스프라이트는 가로 10x2 다. 위아래로 던지면 눕는다. → docs/12-sprites.md */
-const LANCE_LENGTH = 10
-const LANCE_THICKNESS = 2
+/**
+ * 투사체 히트박스 — 가로 10x2, 위아래로 던지면 눕는다. → docs/12-sprites.md
+ *
+ * **무기 종류와 무관하게 같다.** docs/03 의 무기 표에는 크기 칸이 없다 —
+ * 데미지·연사·속도·궤도로 성격을 가르고 사거리는 가르지 않는다는 뜻이다.
+ * 무기마다 다르게 하려면 문서의 표부터 늘려야 한다.
+ *
+ * m1-gate 진단표의 "투사체 크기" 처방은 **적** 투사체를 가리킨다.
+ * 그쪽 레버는 `entities/bosses/hazard.ts` 의 `SIZES` 다.
+ */
+const SHOT_LENGTH = 10
+const SHOT_THICKNESS = 2
 
 export interface SpawnRequest {
   /** 플레이어 히트박스 */
@@ -108,8 +117,8 @@ function buildProjectile(
   request: SpawnRequest,
 ): Projectile {
   const vertical = request.direction === 'up' || request.direction === 'down'
-  const width = vertical ? LANCE_THICKNESS : LANCE_LENGTH
-  const height = vertical ? LANCE_LENGTH : LANCE_THICKNESS
+  const width = vertical ? SHOT_THICKNESS : SHOT_LENGTH
+  const height = vertical ? SHOT_LENGTH : SHOT_THICKNESS
 
   const { x, y, vx, vy } = launchFrom(request, weapon.speed, width, height)
   return { id, weaponId: weapon.id, x, y, width, height, vx, vy, damage: weapon.damage, ageFrames: 0 }

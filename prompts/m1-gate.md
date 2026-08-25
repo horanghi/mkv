@@ -28,6 +28,17 @@
 | 무엇에 죽었는지 모름 | 시각 신호 부족 | 적 대비 강화, 투사체 크기 |
 | 그림에게만 죽음 | 스폰 규칙 위반 | 화면 밖 스폰 여부 재점검 |
 
+각 조치의 손잡이가 어디 있는지 미리 적어 둔다 — 미달이 나온 뒤에 찾으면 늦다.
+
+| 조치 | 손잡이 |
+|---|---|
+| 카메라 선행 | `game/camera.ts` — 데드존과 **따로** 보간한다 (더하면 두 배가 된다) |
+| 예고 신호 | `entities/bosses/cairn.ts` 의 `windupFrames` · 그림의 `dormant` |
+| 연출 단축 · 페이드 축소 | `fx/sequence.ts` 의 `DEATH_TIMING` |
+| 적 대비 강화 | `sprite/enemies.ts` 의 팔레트 (그림의 노란 눈이 그 예다) |
+| 투사체 크기 | `entities/bosses/hazard.ts` 의 `SIZES` — **적** 투사체를 말한다 |
+| 스폰 규칙 | `entities/enemies/grimm.ts` · `world.ts` 가 `viewOf(camera)` 를 넘긴다 |
+
 ## 통과 후
 
 M2로 넘어가되, 이 지표들을 각 스테이지마다 다시 측정한다.
