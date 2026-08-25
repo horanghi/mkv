@@ -381,7 +381,7 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
       ...world,
       map, crumble, player, vitals, clip, shots, camera, cairn, hazards, chests,
       weaponId, rng, nextEnemyId,
-      enemies: pruneEnemies(enemies),
+      enemies: pruneEnemies(enemies, map),
       respawnTicks: vitals.dead ? RESPAWN_DELAY_TICKS : 0,
       cleared: world.cleared || bossKilled,
     },

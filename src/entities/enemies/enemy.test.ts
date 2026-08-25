@@ -10,7 +10,7 @@ import {
   createEnemy,
   damage,
   distanceTo,
-  pruneEnemies,
+  FALL_OUT_MARGIN_TILES, pruneEnemies,
   setState,
   tickFlash,
   touches,
@@ -248,5 +248,42 @@ describe('까마귀 — 궤도를 바꾸지 않는다', () => {
 
   it('급강하가 활공보다 빠르다', () => {
     expect(CORVID.diveSpeed).toBeGreaterThan(CORVID.glideSpeed)
+  })
+})
+
+describe('맵 밖으로 떨어진 적', () => {
+  const MAP = parseTilemap([
+    '..........',
+    '..........',
+    '##########',
+  ])
+
+  function at(y: number) {
+    return { ...make('ghoul', 32, 0), body: { ...make('ghoul', 32, 0).body, y } }
+  }
+
+  it('구덩이에 빠져 맵 아래로 사라지면 걷어낸다', () => {
+    // 죽지 않으므로 그대로 두면 영원히 떨어지며 매 틱 밟힌다.
+    const deep = at((MAP.height + FALL_OUT_MARGIN_TILES) * MAP.tileSize + 1)
+    expect(pruneEnemies([deep], MAP)).toHaveLength(0)
+  })
+
+  it('아직 화면 아래 여유 안이면 남긴다 — 떨어지는 중에 사라지면 안 된다', () => {
+    const falling = at((MAP.height + FALL_OUT_MARGIN_TILES) * MAP.tileSize - 1)
+    expect(pruneEnemies([falling], MAP)).toHaveLength(1)
+  })
+
+  it('죽은 적은 여전히 걷어낸다', () => {
+    const dead = { ...at(0), dead: true }
+    expect(pruneEnemies([dead], MAP)).toHaveLength(0)
+  })
+
+  it('걷어낼 것이 없으면 같은 배열을 돌려준다', () => {
+    const list = [at(0)]
+    expect(pruneEnemies(list, MAP)).toBe(list)
+  })
+
+  it('맵을 안 주면 낙하 판정을 하지 않는다 — 기존 호출부와 호환된다', () => {
+    expect(pruneEnemies([at(99999)])).toHaveLength(1)
   })
 })

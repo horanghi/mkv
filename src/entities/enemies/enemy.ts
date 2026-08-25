@@ -1,4 +1,5 @@
 import type { RngState } from '../../core/rng.ts'
+import type { Tilemap } from '../../physics/tilemap.ts'
 import type { Body } from '../../physics/body.ts'
 import { boxOf, createBody } from '../../physics/body.ts'
 import { overlaps, type Aabb } from '../../physics/aabb.ts'
@@ -122,8 +123,24 @@ export function distanceTo(enemy: Enemy, target: { readonly x: number; readonly 
   return Math.hypot(box.x + box.width / 2 - target.x, box.y + box.height / 2 - target.y)
 }
 
-/** 죽은 적을 걷어낸다. 사망 연출이 끝난 뒤 호출한다. */
-export function pruneEnemies(enemies: readonly Enemy[]): readonly Enemy[] {
-  const alive = enemies.filter((e) => !e.dead)
-  return alive.length === enemies.length ? enemies : alive
+/**
+ * 맵 아래로 이만큼 벗어나면 사라진다. 플레이어의 낙사 판정과 같은 여유다.
+ * → `game/world.ts` 의 `fellOut`
+ */
+export const FALL_OUT_MARGIN_TILES = 2
+
+/**
+ * 걷어낼 적을 걷어낸다 — 죽었거나, **맵 밖으로 떨어졌거나.**
+ *
+ * 구덩이에 빠진 적은 죽지 않는다. 그대로 두면 영원히 떨어지면서 매 틱
+ * 밟히고, 좌표가 무한정 커지며, 결과 화면의 "처치 n/전체" 에서 영영 못
+ * 잡는 수로 남는다. 실제로 7마리 중 5마리가 y 21000 까지 내려가 있었다.
+ */
+export function pruneEnemies(enemies: readonly Enemy[], map?: Tilemap): readonly Enemy[] {
+  const floor = map === undefined
+    ? Number.POSITIVE_INFINITY
+    : (map.height + FALL_OUT_MARGIN_TILES) * map.tileSize
+
+  const kept = enemies.filter((e) => !e.dead && e.body.y <= floor)
+  return kept.length === enemies.length ? enemies : kept
 }
