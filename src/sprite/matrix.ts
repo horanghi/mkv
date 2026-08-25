@@ -69,9 +69,13 @@ export function heightOf(matrix: Matrix): number {
   return matrix.length
 }
 
-/** 빈 32×32 격자. 가변 배열이며 `stamp` 로 채운 뒤 얼린다. */
-export function blankFrame(size: number = SPRITE_SIZE): string[][] {
-  return Array.from({ length: size }, () => Array.from({ length: size }, () => TRANSPARENT))
+/**
+ * 빈 격자. 가변 배열이며 `stamp` 로 채운 뒤 얼린다.
+ *
+ * 기본은 32×32(랜슬·잡몹)이고, 보스처럼 정사각이 아닌 캔버스는 높이를 따로 준다.
+ */
+export function blankFrame(width: number = SPRITE_SIZE, height: number = width): string[][] {
+  return Array.from({ length: height }, () => Array.from({ length: width }, () => TRANSPARENT))
 }
 
 /**

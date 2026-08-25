@@ -68,6 +68,8 @@ src/
     palette.ts    # 팔레트 4종
     pose.ts       # 파츠 조립
     clip.ts       # 클립 8종 · 재생 상태
+    enemies.ts    # 잡몹 3종 통 프레임
+    cairn.ts      # 보스 파츠 조립 · 포즈
     armor.ts      # 교체 축 (팔레트 · 파츠셋)
   render/
     layers.ts     # 8층 레이어 관리
@@ -76,6 +78,8 @@ src/
     postfx/       # 셰이더 스택
     particles.ts
     parallax.ts       # 배경 8층 중 1~4 · 7 그리기
+    enemyRenderer.ts  # 잡몹 스프라이트 (텍스처 캐시 · 풀)
+    cairnRenderer.ts  # 보스 조립 프레임 · 파편 4개
     spriteTexture.ts  # 매트릭스 → PixiJS 텍스처 (캐시)
     breakFx.ts        # 파편 · 섬광 링 · 화면 반전 그리기
     breakDirector.ts  # 연출 진행 상태

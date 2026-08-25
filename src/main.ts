@@ -8,7 +8,7 @@ import { loadBalance } from './data/load.ts'
 import { STAGE_1 } from './data/stages/stage1.ts'
 import { frameFor } from './entities/player/animation.ts'
 import { emitsLight, isBlinking, isInvulnerable, pickUpRelic, spriteStateOf, takeHit } from './entities/player/vitals.ts'
-import { bodyBox, coreBox, isCoreExposed, isWindingUp, slamBox } from './entities/bosses/cairn.ts'
+import { bodyBox, coreBox, isCoreExposed } from './entities/bosses/cairn.ts'
 import { boxOfEnemy } from './entities/enemies/enemy.ts'
 import { NO_ABERRATION, pixelOffset, step as stepAberration, trigger as triggerAberration } from './fx/aberration.ts'
 import { skeletonizeFrame } from './fx/dissolve.ts'
@@ -27,6 +27,7 @@ import { DebugOverlay, type DebugMetrics } from './render/debug/overlay.ts'
 import { BloomLayer } from './render/postfx/bloomLayer.ts'
 import { LightLayer } from './render/postfx/lightLayer.ts'
 import { ScreenFilter } from './render/postfx/screenFilter.ts'
+import { CairnRenderer } from './render/cairnRenderer.ts'
 import { EnemyRenderer } from './render/enemyRenderer.ts'
 import { ParallaxRenderer } from './render/parallax.ts'
 import { S1_PALETTE } from './scenery/stage1.ts'
@@ -114,6 +115,7 @@ const enemyGfx = new Graphics()
 const bossGfx = new Graphics()
 stageRoot.addChild(bossGfx)
 const enemyRenderer = new EnemyRenderer(stageRoot)
+const cairnRenderer = new CairnRenderer(stageRoot)
 stageRoot.addChild(enemyGfx)
 
 const sheet = new SpriteSheet()
@@ -386,26 +388,21 @@ function drawEnemies(): void {
 }
 
 function drawBoss(): void {
+  cairnRenderer.draw(world.cairn, loop.tick)
+
+  // 히트박스는 디버그에서만. 파편 4개는 각각 판정 단위라 눈으로 확인할 수 있어야 한다.
   const g = bossGfx.clear()
-  const cairn = world.cairn
-  if (!cairn.awake || cairn.state === 'dead') return
-
-  const body = bodyBox(cairn)
-  // 예비 동작 중에는 실루엣이 달라져야 읽힌다.
-  // 예비 동작 중에는 밝아진다. 실루엣 변화가 없으면 패턴을 읽을 수 없다.
-  const tint = cairn.hitFlash > 0 ? 0xffffff : isWindingUp(cairn) ? 0xb9c6d8 : 0x6b7385
-  g.rect(Math.round(body.x), Math.round(body.y), body.width, body.height).fill(tint)
-
-  const core = coreBox(cairn)
+  if (!showDebugBoxes || !world.cairn.awake) return
+  const body = bodyBox(world.cairn)
+  g.rect(Math.round(body.x), Math.round(body.y), body.width, body.height)
+    .stroke({ width: 1, color: 0x8695ac })
+  const core = coreBox(world.cairn)
   g.rect(Math.round(core.x), Math.round(core.y), core.width, core.height)
-    .fill(isCoreExposed(cairn) ? 0xc9a6e8 : 0x8b4fd6)
-
-  for (const fragment of cairn.fragments) {
-    g.rect(Math.round(fragment.x), Math.round(fragment.y), 14, 14).fill(0x6b7385)
+    .stroke({ width: 1, color: 0xc9a6e8 })
+  for (const fragment of world.cairn.fragments) {
+    g.rect(Math.round(fragment.x), Math.round(fragment.y), 14, 14)
+      .stroke({ width: 1, color: 0xe23e4e })
   }
-
-  const slam = slamBox(cairn)
-  if (slam) g.rect(Math.round(slam.x), Math.round(slam.y), slam.width, slam.height).fill(0xe23e4e)
 }
 
 function drawLighting(features: ReturnType<typeof featuresFor>, now: number): void {
