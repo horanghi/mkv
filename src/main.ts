@@ -4,6 +4,7 @@ import {
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TICK_SECONDS } from './core/config.ts'
 import { INITIAL_INPUT, advanceInput, isDown, type InputState } from './core/input.ts'
 import { KeyboardSource } from './core/keyboard.ts'
+import { browserMediaQuery, needsKeyboardNotice } from './core/pointer.ts'
 import { INITIAL_LOOP, advance, requestHitstop, type LoopState } from './core/loop.ts'
 import { computeViewport } from './core/viewport.ts'
 import {
@@ -58,6 +59,7 @@ import {
   DUCK, INITIAL_MUSIC, duckMusic, silence, stepMusic, toBossTheme, type MusicState,
 } from './core/audio.ts'
 import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
+import { KeyboardNotice } from './ui/menus/keyboardNotice.ts'
 import { Playtest } from './ui/report/playtest.ts'
 import { PauseMenu } from './ui/menus/pauseMenu.ts'
 import { ResultsScreen } from './ui/menus/resultsScreen.ts'
@@ -151,6 +153,10 @@ const keyboard = new KeyboardSource(window)
  * 유지율은 사람의 기억으로 잴 수 없으므로 빌드가 직접 센다.
  * 테스터에게는 지표를 보여주지 않는다 — 재는 걸 알면 행동이 달라진다.
  */
+// 폰으로 열었으면 먼저 알린다. 못 하는 채로 닫으면 테스터 한 명이 사라진다.
+const keyboardNotice = new KeyboardNotice(host)
+if (needsKeyboardNotice(browserMediaQuery())) keyboardNotice.show()
+
 const playtest = new Playtest(host, keyboard)
 // 지난 방문의 난이도와 저장된 세션이 다를 수 있다. 다르면 세션을 새로 연다.
 playtest.setDifficulty(difficulty)
