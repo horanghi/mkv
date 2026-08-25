@@ -90,12 +90,14 @@ export function aggregate(payloads: readonly Payload[]): Aggregate {
   }
 
   // 게이트 난이도만 남긴다. 섞으면 합격선이 뜻을 잃는다.
-  const unique = all.filter((p) => (p.diff ?? GATE_DIFFICULTY) === GATE_DIFFICULTY)
+  //
+  // 값이 없으면 **빼는 쪽으로** 떨어진다. 버전이 맞는데 난이도가 없는 꾸러미는
+  // 손댄 것이므로, 게이트 난이도로 넘겨짚어 조용히 넣는 것보다 낫다.
+  const unique = all.filter((p) => p.diff === GATE_DIFFICULTY)
   const offCounts = new Map<string, number>()
   for (const p of all) {
-    const diff = p.diff ?? GATE_DIFFICULTY
-    if (diff === GATE_DIFFICULTY) continue
-    offCounts.set(diff, (offCounts.get(diff) ?? 0) + 1)
+    if (p.diff === GATE_DIFFICULTY) continue
+    offCounts.set(p.diff, (offCounts.get(p.diff) ?? 0) + 1)
   }
 
   // 재시도율 — 사망 수로 가중한다. 두 번 죽은 사람과 서른 번 죽은 사람의

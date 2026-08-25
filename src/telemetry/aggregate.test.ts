@@ -161,6 +161,43 @@ describe('게이트 판정', () => {
     expect(verdictOf(aggregate(slow), 'controlBack')).toBe('fail')
   })
 
+  it('60fps 를 못 지키면 실패다', () => {
+    const choppy = passingFive().map((p) => ({ ...p, fps: { ...p.fps, held: 0.9 } }))
+    expect(verdictOf(aggregate(choppy), 'fps')).toBe('fail')
+  })
+
+  it('부활이 3초를 넘으면 실패다', () => {
+    const slow = passingFive().map((p) => ({ ...p, worstRespawnMs: 3200 }))
+    expect(verdictOf(aggregate(slow), 'controlBack')).toBe('fail')
+  })
+
+  it('연출 반응이 모자라면 실패다', () => {
+    const disliked = passingFive().map((p, i) => ({
+      ...p, survey: { ...p.survey, deathFxLiked: i === 0 },
+    }))
+    expect(verdictOf(aggregate(disliked), 'deathFx')).toBe('fail')
+  })
+
+  it('재지 못한 항목은 판정하지 않는다 — 0 을 통과로 읽으면 안 된다', () => {
+    const blank = passingFive().map((p) => ({
+      ...p,
+      retryRate: null,
+      fps: { ...p.fps, held: null, samples: 0 },
+      loadKB: null,
+      worstRespawnMs: 0,
+      survey: { ...p.survey, deathFxLiked: null },
+    }))
+    const agg = aggregate(blank)
+    for (const key of ['retryRate', 'fps', 'load', 'controlBack', 'deathFx']) {
+      expect(verdictOf(agg, key)).toBe('unknown')
+    }
+  })
+
+  it('사망 표본이 적으면 재시도율을 판정하지 않는다', () => {
+    const shy = passingFive().map((p) => ({ ...p, deaths: 1 }))
+    expect(verdictOf(aggregate(shy), 'retryRate')).toBe('unknown')
+  })
+
   it('하나라도 실패하면 전체가 실패다', () => {
     const mixed = passingFive().map((p) => ({ ...p, retryRate: 0.5 }))
     expect(overall(gateVerdict(aggregate(mixed)))).toBe('fail')
@@ -196,6 +233,24 @@ describe('난이도가 섞인 결과', () => {
     expect(mixed.hotspots).toEqual(clean.hotspots)
   })
 
+  it('여러 난이도가 섞이면 많은 순으로 적는다', () => {
+    const agg = aggregate([
+      ...passingFive(),
+      tester({ id: 'p1', diff: 'paladin' }),
+      tester({ id: 's1', diff: 'squire' }),
+      tester({ id: 'p2', diff: 'paladin' }),
+    ])
+    expect(agg.offDifficultyDropped).toBe(3)
+    expect(agg.offDifficulty).toEqual([['paladin', 2], ['squire', 1]])
+  })
+
+  it('난이도가 비어 있으면 넣지 않고 뺀다 — 넘겨짚지 않는다', () => {
+    const broken = { ...tester({ id: 'x' }), diff: '' }
+    const agg = aggregate([...passingFive(), broken])
+    expect(agg.testers).toBe(5)
+    expect(agg.offDifficultyDropped).toBe(1)
+  })
+
   it('쉬운 난이도 사람이 섞여 인원만 채운 경우는 표본부족이다', () => {
     const agg = aggregate([
       ...Array.from({ length: 4 }, (_, i) => tester({ id: `t${i}` })),
@@ -215,6 +270,14 @@ describe('낡은 형식', () => {
     expect(agg.stale).toEqual([[2, 1]])
   })
 
+  it('여러 버전이 섞이면 많은 순으로 적는다', () => {
+    const agg = aggregate([
+      ...passingFive(),
+      tester({ id: 'o1', v: 2 }), tester({ id: 'o2', v: 1 }), tester({ id: 'o3', v: 2 }),
+    ])
+    expect(agg.stale).toEqual([[2, 2], [1, 1]])
+  })
+
   it('낡은 꾸러미의 숫자는 어느 집계에도 안 들어간다', () => {
     const mixed = aggregate([...passingFive(), tester({ id: 'old', v: 2, retryRate: 0, deaths: 500 })])
     const clean = aggregate(passingFive())
@@ -228,5 +291,15 @@ describe('낡은 형식', () => {
       tester({ id: 'old', v: 2 }),
     ])
     expect(overall(gateVerdict(agg))).toBe('unknown')
+  })
+})
+
+describe('사망 구간 겹쳐 보기', () => {
+  it('수가 같으면 앞 타일이 먼저 온다 — 순서가 흔들리면 못 읽는다', () => {
+    const agg = aggregate([
+      tester({ id: 'a', hotspots: [[80, 3], [16, 3], [48, 9]] }),
+      tester({ id: 'b', hotspots: [] }),
+    ])
+    expect(agg.hotspots).toEqual([[48, 9], [16, 3], [80, 3]])
   })
 })
