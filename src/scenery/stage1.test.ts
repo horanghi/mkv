@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng } from '../core/rng.ts'
 import { STAGE_1 } from '../data/stages/stage1.ts'
+import { HUD_BAR_HEIGHT } from '../render/hudRenderer.ts'
 import { scatter } from './props.ts'
 import { ridgeline } from './silhouette.ts'
 import { CANOPY, CLOUDS, FOG, PARALLAX, S1_PALETTE, S1_SCENERY, WISPS } from './stage1.ts'
@@ -110,7 +111,8 @@ describe('스테이지 1 배경', () => {
     const headScreenY = highestRow * map.tileSize - PLAYER_HEIGHT - JUMP_HEIGHT - cameraSlack
 
     // 오클루전이지 가림막이 아니다. 머리가 나뭇가지에 닿으면 안 된다.
-    expect(CANOPY.maxDepth).toBeLessThan(headScreenY)
+    // 나뭇가지는 HUD 바 아래에 걸리므로 그 높이를 더해서 본다.
+    expect(HUD_BAR_HEIGHT + CANOPY.maxDepth).toBeLessThan(headScreenY)
     expect(CANOPY.minDepth).toBeGreaterThan(0)
     expect(CANOPY.parallax).toBe(PARALLAX.foreground)
   })

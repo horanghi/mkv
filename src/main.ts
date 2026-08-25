@@ -41,7 +41,7 @@ import { EnemyRenderer } from './render/enemyRenderer.ts'
 import { ParallaxRenderer } from './render/parallax.ts'
 import { S1_PALETTE } from './scenery/stage1.ts'
 import { SpriteSheet, matrixToTexture } from './render/spriteTexture.ts'
-import { HudRenderer } from './render/hudRenderer.ts'
+import { HUD_BAR_HEIGHT, HudRenderer } from './render/hudRenderer.ts'
 import { Sfx } from './core/sfx.ts'
 import { Bgm } from './core/bgm.ts'
 import {
@@ -153,7 +153,9 @@ worldRoot.addChild(shakeRoot, lightLayer.output, bloomLayer.output, fxLayer)
 worldRoot.filters = [screenFilter]
 app.stage.addChild(worldRoot)
 
-const parallax = new ParallaxRenderer(backdropRoot, foregroundRoot, bloomLayer.emissive)
+// 나뭇가지는 HUD 바 아래에 건다. 위에 그리면 HUD 가 통째로 덮는다.
+const parallax = new ParallaxRenderer(
+  backdropRoot, foregroundRoot, bloomLayer.emissive, HUD_BAR_HEIGHT)
 const greybox = new GreyboxRenderer(stageRoot)
 const enemyGfx = new Graphics()
 const bossGfx = new Graphics()

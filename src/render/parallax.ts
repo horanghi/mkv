@@ -34,6 +34,7 @@ export class ParallaxRenderer {
   private readonly cloudRoot = new Container()
   private readonly canopy = new Graphics()
   private readonly canopyRoot = new Container()
+  private readonly topInset: number
   private readonly fog = new Graphics()
   /** 씬에 보이는 알맹이 */
   private readonly wisps = new Graphics()
@@ -46,7 +47,11 @@ export class ParallaxRenderer {
    */
   private readonly wispRoot = new Container()
 
-  constructor(backdrop: Container, foreground: Container, emissive: Container) {
+  /**
+   * @param topInset 전경 나뭇가지를 걸 y. HUD 바 아래여야 보인다.
+   */
+  constructor(backdrop: Container, foreground: Container, emissive: Container, topInset = 0) {
+    this.topInset = topInset
     this.drawSky()
     backdrop.addChild(this.sky)
 
@@ -90,7 +95,7 @@ export class ParallaxRenderer {
     this.cloudRoot.y = -cameraY * 0.03
 
     this.canopyRoot.x = -wrap(cameraX * CANOPY.parallax, CANOPY.spanX)
-    this.canopyRoot.y = -cameraY * CANOPY.parallax * 0.3
+    this.canopyRoot.y = this.topInset - cameraY * CANOPY.parallax * 0.3
 
     this.fogRoot.x = -wrap(cameraX * FOG.parallax, FOG.spanX)
     this.fogRoot.y = -cameraY * 0.2

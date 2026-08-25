@@ -12,7 +12,9 @@ import { formatScore, formatTime, isTimeCritical, type HudState } from '../ui/hu
  * → docs/09-ui-ux-controls.md 9.2
  */
 
-const BAR_HEIGHT = 24
+/** HUD 상단 바 높이. 전경 나뭇가지가 이 아래에 걸린다 — 위에 그리면 가려진다. */
+export const HUD_BAR_HEIGHT = 24
+const BAR_HEIGHT = HUD_BAR_HEIGHT
 const COLOR = {
   bar: 0x0b0710,
   life: 0xc23b4a,
