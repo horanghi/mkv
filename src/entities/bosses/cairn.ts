@@ -32,7 +32,15 @@ export const CAIRN = {
 
   slam: { windupFrames: 30, activeFrames: 12, recoverFrames: 36, reach: 40 },
   throwPattern: { windupFrames: 26, count: 2, recoverFrames: 30 },
-  quake: { windupFrames: 34, rockCount: 3, ghoulCount: 3, recoverFrames: 40 },
+  /**
+   * 지진 — 광역 제압.
+   *
+   * `spreadPx` 는 낙석 3개가 덮는 폭이다. 플레이어를 중심에 두므로
+   * 가운데 낙석이 그 자리에 떨어지고, 양옆 낙석이 물러날 곳을 막는다.
+   * 간격(spreadPx / 2 = 80px)이 곧 **확정 회피 경로**다 — 랜슬 폭 12px 의
+   * 여섯 배라 반응만 하면 반드시 피할 수 있다.
+   */
+  quake: { windupFrames: 34, rockCount: 3, ghoulCount: 3, recoverFrames: 40, spreadPx: 160 },
   split: { windupFrames: 30, fragmentCount: 4, chaseFrames: 240, mergeFrames: 36 },
 } as const
 
@@ -213,7 +221,16 @@ function stepTimed(cairn: Cairn, total: number): CairnStep {
   return { cairn: { ...cairn, state: 'idle', stateFrames: 0, fragments: [] }, emission: NOTHING }
 }
 
-/** 묘비 투척 — 포물선 2개. 착지점이 갈라져 있어 사이로 피할 수 있다. */
+/**
+ * 묘비 투척 — 포물선 2개. **플레이어를 겨냥한다.**
+ *
+ * 착지점이 갈라져 있어 **사이로** 피할 수 있다 — 회피는 그 틈으로 하는 것이지
+ * 사거리 밖에 서서 하는 것이 아니다. 고정 속도로 던지면 조금만 물러나도
+ * 아무것도 닿지 않는 안전지대가 생긴다 (실제로 왼쪽 60px 부터 그랬다).
+ *
+ * 강타(근접)와 지진(보스 주변)이 못 닿는 거리를 이 패턴이 맡는다.
+ * → docs/05 5.4 캐른
+ */
 function stepThrow(cairn: Cairn, ctx: CairnContext): CairnStep {
   const frames = cairn.stateFrames + 1
   const spec = CAIRN.throwPattern
@@ -221,11 +238,18 @@ function stepThrow(cairn: Cairn, ctx: CairnContext): CairnStep {
   if (frames === spec.windupFrames) {
     const originX = cairn.x + CAIRN.width / 2
     const originY = cairn.y + 12
+    const flight = throwFlightSeconds(originY, ctx.groundY)
+    const aimDx = clampMagnitude(ctx.target.x - originX, THROW_MAX_REACH)
+    const side = aimDx < 0 ? -1 : 1
+    const half = THROW_GAP_PX / 2
+
     const gravestones = Array.from({ length: spec.count }, (_, i) => ({
       x: originX,
       y: originY,
-      vx: cairn.facing * (110 + i * 55),
-      vy: -170,
+      // 플레이어를 사이에 두고 **고정 폭**으로 갈라진다.
+      // 비율로 갈라면 가까울수록 틈이 좁아져 회피 경로가 사라진다.
+      vx: (aimDx + (i === 0 ? -half * side : half * side)) / flight,
+      vy: THROW_LAUNCH_VY,
     }))
     return { cairn: { ...cairn, stateFrames: frames }, emission: { ...NOTHING, gravestones } }
   }
@@ -233,8 +257,53 @@ function stepThrow(cairn: Cairn, ctx: CairnContext): CairnStep {
   if (frames >= spec.windupFrames + spec.recoverFrames) {
     return { cairn: { ...cairn, state: 'idle', stateFrames: 0 }, emission: NOTHING }
   }
-  void ctx
   return { cairn: { ...cairn, stateFrames: frames }, emission: NOTHING }
+}
+
+/**
+ * 던지는 순간의 상승 속도. 체공 시간과 **낙하 각도**가 여기서 정해진다.
+ *
+ * 낮게 던지면 착지점이 갈라져 있어도 소용없다 — 먼 쪽 묘비가 플레이어 자리를
+ * 지나갈 때 아직 낮아서 몸에 스친다. 실측으로 확인했다 (98px 거리에서
+ * vy −170 이면 머리 높이 19px 로 지나가 26px 짜리 랜슬에 걸린다).
+ *
+ * 높이 띄우면 더 가파르게 내려와 머리 위로 넘어가고, 체공이 길어져
+ * 읽을 시간도 늘어난다.
+ */
+export const THROW_LAUNCH_VY = -340
+/**
+ * 두 착지점 사이의 폭 (px). 플레이어를 가운데 두고 갈라진다.
+ *
+ * **고정 폭이다.** 비율로 갈라면 가까울수록 틈이 좁아져, 정작 위험한
+ * 근거리에서 확정 회피 경로가 사라진다.
+ *
+ * 값이 큰 이유는 랜슬 폭(12px) 때문이 아니라 **포물선의 기하** 때문이다.
+ * 먼 쪽 묘비는 플레이어 머리 위를 지나 착지하는데, 착지점이 가까우면
+ * 지나갈 때 이미 낮아져 몸에 스친다. 전 거리에서 스치지 않는 최소값을
+ * 실측으로 찾았다 — `src/game/bossThrow.test.ts` 가 그 값을 지킨다.
+ *
+ * 이 패턴은 광역 제압이 아니다. 서 있을 자리를 좁히는 **위치 압박**이고,
+ * 어디에 서 있든 때리는 것은 지진이 맡는다.
+ */
+export const THROW_GAP_PX = 128
+
+/**
+ * 겨냥 사거리 상한 (px). 이보다 멀면 겨냥을 포기한다.
+ *
+ * 화면을 가로지르는 투사체는 읽을 수 없다. 그 바깥은 지진이 맡는다.
+ */
+export const THROW_MAX_REACH = 190
+/** 묘비에 걸리는 중력. 위험물과 같아야 궤도 계산이 맞는다. */
+export const THROW_GRAVITY = 1750
+
+/** 묘비의 체공 시간 (초). 발사 높이에서 지면까지. */
+export function throwFlightSeconds(launchY: number, groundY: number): number {
+  const drop = Math.max(1, groundY - launchY)
+  return (-THROW_LAUNCH_VY + Math.sqrt(THROW_LAUNCH_VY ** 2 + 2 * THROW_GRAVITY * drop)) / THROW_GRAVITY
+}
+
+function clampMagnitude(value: number, limit: number): number {
+  return Math.max(-limit, Math.min(limit, value))
 }
 
 /** 지면 강타 — 낙석 3개와 좀비 3마리. 낙석 사이가 확정 회피 경로다. */
@@ -243,8 +312,11 @@ function stepQuake(cairn: Cairn, ctx: CairnContext): CairnStep {
   const spec = CAIRN.quake
 
   if (frames === spec.windupFrames) {
-    const spread = CAIRN.width * 2
-    const left = cairn.x + CAIRN.width / 2 - spread / 2
+    // **플레이어를 중심으로** 떨어진다. 보스 주변만 덮으면 강타와 역할이 겹치고,
+    // 조금 물러난 자리에는 아무것도 안 닿는 안전지대가 생긴다.
+    // 광역 제압 패턴은 광역을 제압해야 한다. → docs/05 5.4
+    const spread = CAIRN.quake.spreadPx
+    const left = ctx.target.x - spread / 2
     const rocks = Array.from({ length: spec.rockCount }, (_, i) => ({
       x: left + (spread / (spec.rockCount - 1)) * i,
       y: ctx.groundY - 200,

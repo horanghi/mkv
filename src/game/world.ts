@@ -9,6 +9,10 @@ import {
   type Cairn,
 } from '../entities/bosses/cairn.ts'
 import {
+  EMPTY_HAZARDS, boxOfHazard, clearHazards, spawnHazard, stepHazards,
+  type HazardWorld,
+} from '../entities/bosses/hazard.ts'
+import {
   boxOfEnemy, createEnemy, damage, pruneEnemies, tickFlash, touches,
   type Enemy, type EnemyKind,
 } from '../entities/enemies/enemy.ts'
@@ -52,6 +56,8 @@ export interface World {
   readonly shots: ProjectileWorld
   readonly enemies: readonly Enemy[]
   readonly cairn: Cairn
+  /** 보스가 내보낸 위험물 — 묘비·낙석. 플레이어를 때린다 */
+  readonly hazards: HazardWorld
   readonly camera: Camera
   readonly weaponId: string
   readonly rng: RngState
@@ -102,12 +108,14 @@ const NO_EVENTS: WorldEvents = Object.freeze({
 function causeOfHit(
   enemies: readonly Enemy[],
   cairn: Cairn,
+  hazards: HazardWorld,
   playerBox: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
 ): DamageCause | null {
   const slam = slamBox(cairn)
   const byCairn = fragmentBoxes(cairn).some((b) => overlaps(b, playerBox))
     || (slam !== null && overlaps(slam, playerBox))
     || (cairn.awake && cairn.state !== 'dead' && overlaps(bodyBox(cairn), playerBox))
+    || hazards.hazards.some((h) => overlaps(boxOfHazard(h), playerBox))
   if (byCairn) return 'cairn'
 
   const hit = enemies.find((e) => touches(e, playerBox) && isVulnerable(e))
@@ -144,6 +152,7 @@ export function createWorld(stage: Stage, balance: Balance, seed = 20260825): Wo
     shots: EMPTY_WORLD,
     enemies,
     cairn: createCairn(bossX, (stage.map.height - 1) * size - 52, createRng(seed + 7)),
+    hazards: EMPTY_HAZARDS,
     camera: snapCamera({ x: player.body.x, y: player.body.y, facing: 0, falling: false },
       boundsOf(stage)),
     weaponId: 'lance',
@@ -222,6 +231,16 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   cairn = bossStep.cairn
   if (bossStep.emission.quake) events = { ...events, quake: true }
 
+  // 묘비와 낙석. 이걸 받지 않으면 두 패턴이 예비 동작만 하고 아무 일도 안 한다.
+  let hazards = world.hazards
+  for (const spawn of bossStep.emission.gravestones) {
+    hazards = spawnHazard(hazards, 'gravestone', spawn)
+  }
+  for (const spawn of bossStep.emission.rocks) {
+    hazards = spawnHazard(hazards, 'rock', spawn)
+  }
+  hazards = stepHazards(hazards, map, balance.player.gravityFalling, dt)
+
   let rng = world.rng
   let nextEnemyId = world.nextEnemyId
   for (const spawn of bossStep.emission.ghouls) {
@@ -277,7 +296,7 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   // --- 피격 -----------------------------------------------------------------
   let vitals = tickVitals(world.vitals)
   if (!isInvulnerable(vitals)) {
-    const cause = causeOfHit(enemies, cairn, playerBox)
+    const cause = causeOfHit(enemies, cairn, hazards, playerBox)
 
     if (cause !== null) {
       const result = takeHit(vitals, balance.player)
@@ -309,7 +328,7 @@ export function stepWorld(world: World, input: InputState, balance: Balance): Wo
   return {
     world: {
       ...world,
-      map, crumble, player, vitals, clip, shots, camera, cairn, rng, nextEnemyId,
+      map, crumble, player, vitals, clip, shots, camera, cairn, hazards, rng, nextEnemyId,
       enemies: pruneEnemies(enemies),
       respawnTicks: vitals.dead ? RESPAWN_DELAY_TICKS : 0,
       cleared: world.cleared || bossKilled,
@@ -342,6 +361,7 @@ function stepDead(world: World, input: InputState, balance: Balance): WorldStep 
       player, vitals, weaponId,
       clip: startClip('idle'),
       shots: EMPTY_WORLD,
+      hazards: clearHazards(world.hazards),
       crumble: resetCrumble(),
       map: world.stage.map,
       respawnTicks: 0,

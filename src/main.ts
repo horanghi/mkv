@@ -11,6 +11,7 @@ import { STAGE_1 } from './data/stages/stage1.ts'
 import { frameFor } from './entities/player/animation.ts'
 import { emitsLight, isBlinking, isInvulnerable, pickUpRelic, spriteStateOf, takeHit } from './entities/player/vitals.ts'
 import { bodyBox, coreBox, isCoreExposed } from './entities/bosses/cairn.ts'
+import { boxOfHazard } from './entities/bosses/hazard.ts'
 import { boxOfEnemy } from './entities/enemies/enemy.ts'
 import { NO_ABERRATION, pixelOffset, step as stepAberration, trigger as triggerAberration } from './fx/aberration.ts'
 import { skeletonizeFrame } from './fx/dissolve.ts'
@@ -194,7 +195,8 @@ const parallax = new ParallaxRenderer(
 const greybox = new GreyboxRenderer(stageRoot)
 const enemyGfx = new Graphics()
 const bossGfx = new Graphics()
-stageRoot.addChild(bossGfx)
+const hazardGfx = new Graphics()
+stageRoot.addChild(bossGfx, hazardGfx)
 const enemyRenderer = new EnemyRenderer(stageRoot)
 const cairnRenderer = new CairnRenderer(stageRoot)
 stageRoot.addChild(enemyGfx)
@@ -557,6 +559,7 @@ function drawEnemies(): void {
 
 function drawBoss(): void {
   cairnRenderer.draw(world.cairn, loop.tick)
+  drawHazards()
 
   // 히트박스는 디버그에서만. 파편 4개는 각각 판정 단위라 눈으로 확인할 수 있어야 한다.
   const g = bossGfx.clear()
@@ -570,6 +573,23 @@ function drawBoss(): void {
   for (const fragment of world.cairn.fragments) {
     g.rect(Math.round(fragment.x), Math.round(fragment.y), 14, 14)
       .stroke({ width: 1, color: 0xe23e4e })
+  }
+}
+
+/**
+ * 보스가 던진 묘비와 낙석.
+ *
+ * 밝게 그린다. 플레이어를 때리는 것은 배경보다 밝아야 읽힌다 —
+ * 잡몹 대비 규칙과 같다. → prompts/m1-gate.md 진단표
+ */
+function drawHazards(): void {
+  const g = hazardGfx.clear()
+  for (const hazard of world.hazards.hazards) {
+    const box = boxOfHazard(hazard)
+    const color = hazard.kind === 'rock' ? 0x8e97a8 : 0xa99c8a
+    g.rect(Math.round(box.x), Math.round(box.y), box.width, box.height).fill(color)
+    // 윗면을 밝혀 굴러오는 덩어리로 읽히게 한다
+    g.rect(Math.round(box.x), Math.round(box.y), box.width, 2).fill(0xd8d2bc)
   }
 }
 
