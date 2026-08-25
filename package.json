@@ -4,6 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "description": "마령촌 (GRIMHOLLOW) — browser hardcore 2D action platformer",
+  "license": "MIT",
+  "author": "GyumanCho",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/horanghi/mkv.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/check-size.mjs",
