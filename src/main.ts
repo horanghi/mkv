@@ -18,7 +18,7 @@ import { skeletonizeFrame } from './fx/dissolve.ts'
 import { RELIC_LIGHT, limitLights, type Light } from './fx/light.ts'
 import { ARMOR_BREAK_TIMING, DEATH_TIMING } from './fx/sequence.ts'
 import { QUALITY_TIERS, createQuality, featuresFor, observeFps, setManual, type QualityState } from './fx/quality.ts'
-import { createWorld, stepWorld, type DamageCause, type World } from './game/world.ts'
+import { continueFrom, createWorld, stepWorld, type DamageCause, type World } from './game/world.ts'
 import { sectionAt } from './game/stage.ts'
 import {
   RUNNING, countdownNumber, isMenuOpen, isPlayable, pause as pauseGame,
@@ -56,6 +56,7 @@ import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
 import { Playtest } from './ui/report/playtest.ts'
 import { PauseMenu } from './ui/menus/pauseMenu.ts'
 import { ResultsScreen } from './ui/menus/resultsScreen.ts'
+import { GameOverScreen } from './ui/menus/gameOverScreen.ts'
 
 /**
  * 부트스트랩과 렌더.
@@ -150,6 +151,14 @@ const pauseMenu = new PauseMenu(host, {
     // 이미 지나온 구간의 규칙이 달라져 기록이 뒤섞인다.
     reset()
   },
+})
+
+const gameOverScreen = new GameOverScreen(host, {
+  onContinue: () => {
+    gameOverScreen.close()
+    world = continueFrom(world, balance)
+  },
+  onRestart: () => { reset() },
 })
 
 const resultsScreen = new ResultsScreen(host, {
@@ -280,6 +289,7 @@ function reset(): void {
   results = null
   resultsElapsedMs = 0
   resultsScreen.close()
+  gameOverScreen.close()
   elapsedTicks = 0
   bossSeen = false
   director.reset()
@@ -332,7 +342,7 @@ app.ticker.add(() => {
   // 틱 밖에서 본다. 멈춰 있으면 틱이 안 도는데 그 안에서 입력을 읽으면
   // 다시 켤 방법이 없어진다. 누른 순간만 잡아야 하므로 직전 상태와 비교한다.
   const pauseDown = isDown(polled, 'pause')
-  const menuBusy = resultsScreen.isOpen || playtest.surveyOpen
+  const menuBusy = resultsScreen.isOpen || gameOverScreen.isOpen || playtest.surveyOpen
   if (pauseDown && !prevPauseDown && !menuBusy) {
     pauseState = togglePause(pauseState)
     sfx.play('menu')
@@ -412,6 +422,7 @@ app.ticker.add(() => {
     // → docs/07 7.5
     if (result.events.grimmTookOff) sfx.play('grimmTakeoff')
     if (result.events.bossKilled) sfx.play('clear')
+    if (result.events.gameOver) { sfx.play('death'); music = silence(music, 600) }
 
     // 보스 등장 — 0.3초 무음. 소리가 사라지면 사람은 화면을 본다.
     if (!bossSeen && world.cairn.awake) {
@@ -512,6 +523,10 @@ app.ticker.add(() => {
   bgm.update(music)
 
   overlay.render(metricsOf(frameMs))
+
+  // --- 게임 오버 -----------------------------------------------------------
+  // 잔기가 남아 있으면 여기까지 오지 않는다. 일반 사망에는 아무것도 끼어들지 않는다.
+  if (world.gameOver && !gameOverScreen.isOpen) gameOverScreen.open()
 
   // --- 결과 화면 -----------------------------------------------------------
   if (world.cleared && results === null) {

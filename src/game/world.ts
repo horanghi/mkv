@@ -65,6 +65,13 @@ export interface World {
   /** 사망 후 부활까지 남은 틱 */
   readonly respawnTicks: number
   readonly cleared: boolean
+  /**
+   * 잔기를 다 썼다. 플레이어가 고를 때까지 멈춘다.
+   *
+   * **잔기가 남아 있으면 절대 참이 되지 않는다** — 어떤 UI 도 끼어들지 않는다.
+   * → docs/09 9.3
+   */
+  readonly gameOver: boolean
 }
 
 /**
@@ -89,6 +96,8 @@ export interface WorldEvents {
   readonly landed: boolean
   /** 그림이 대기에서 풀려 날아오르기 시작했다 */
   readonly grimmTookOff: boolean
+  /** 이번 틱에 잔기를 다 썼다. 한 번만 뜬다 */
+  readonly gameOver: boolean
   /** `hurt` 또는 `died` 일 때만 채워진다. */
   readonly cause: DamageCause | null
 }
@@ -96,7 +105,7 @@ export interface WorldEvents {
 const NO_EVENTS: WorldEvents = Object.freeze({
   armorBroke: false, died: false, hurt: false, enemiesKilled: 0,
   bossHit: 0, bossKilled: false, quake: false, fired: false, landed: false,
-  grimmTookOff: false, cause: null,
+  grimmTookOff: false, gameOver: false, cause: null,
 })
 
 /**
@@ -160,6 +169,7 @@ export function createWorld(stage: Stage, balance: Balance, seed = 20260825): Wo
     nextEnemyId: id,
     respawnTicks: 0,
     cleared: false,
+    gameOver: false,
   }
 }
 
@@ -345,10 +355,19 @@ function stepDead(world: World, input: InputState, balance: Balance): WorldStep 
     return { world: { ...world, respawnTicks: remaining }, input, events: NO_EVENTS }
   }
 
-  const vitals = isGameOver(world.vitals)
-    ? continueGame(balance.player).vitals
-    : respawn(world.vitals, balance.player)
-  const weaponId = isGameOver(world.vitals) ? 'lance' : world.weaponId
+  // 잔기를 다 썼으면 여기서 멈춘다. 플레이어가 고를 때까지 부활하지 않는다.
+  // 잔기가 남아 있으면 아무것도 묻지 않고 바로 되살린다 — 재시작 마찰이
+  // 재시도율을 그대로 깎는다. → docs/09 9.3, prompts/m1-gate.md
+  if (isGameOver(world.vitals)) {
+    return {
+      world: { ...world, respawnTicks: 0, gameOver: true },
+      input,
+      events: world.gameOver ? NO_EVENTS : { ...NO_EVENTS, gameOver: true },
+    }
+  }
+
+  const vitals = respawn(world.vitals, balance.player)
+  const weaponId = world.weaponId
 
   const size = world.map.tileSize
   const cp = lastCheckpoint(world.stage, world.player.body.x)
@@ -372,6 +391,40 @@ function stepDead(world: World, input: InputState, balance: Balance): WorldStep 
     },
     input,
     events: NO_EVENTS,
+  }
+}
+
+/**
+ * 게임 오버에서 이어 한다.
+ *
+ * 잔기와 무기가 초기화되고 마지막 체크포인트에서 다시 시작한다.
+ * 스테이지 진행(지나온 거리)은 잃지 않는다.
+ */
+export function continueFrom(world: World, balance: Balance): World {
+  if (!world.gameOver) return world
+
+  const size = world.map.tileSize
+  const cp = lastCheckpoint(world.stage, world.player.body.x)
+  const at = cp ?? world.stage.spawn
+  const fresh = continueGame(balance.player)
+  const player = createPlayer(at.tx * size, at.ty * size, balance.player)
+
+  return {
+    ...world,
+    player,
+    vitals: fresh.vitals,
+    weaponId: fresh.weaponId,
+    clip: startClip('idle'),
+    shots: EMPTY_WORLD,
+    hazards: clearHazards(world.hazards),
+    crumble: resetCrumble(),
+    map: world.stage.map,
+    respawnTicks: 0,
+    gameOver: false,
+    camera: snapCamera(
+      { x: player.body.x, y: player.body.y, facing: 0, falling: false },
+      boundsOf(world.stage),
+    ),
   }
 }
 

@@ -4,7 +4,9 @@ import { loadBalance } from '../data/load.ts'
 import { STAGE_1 } from '../data/stages/stage1.ts'
 import { CAIRN } from '../entities/bosses/cairn.ts'
 import { snapCamera } from './camera.ts'
-import { boundsOf, createWorld, stepWorld, RESPAWN_DELAY_TICKS, type World } from './world.ts'
+import {
+  boundsOf, continueFrom, createWorld, stepWorld, RESPAWN_DELAY_TICKS, type World,
+} from './world.ts'
 
 const balance = loadBalance()
 
@@ -130,7 +132,21 @@ describe('사망과 부활', () => {
     expect(step.world.player).toBe(dead.player)
   })
 
-  it('잔기를 다 쓰면 컨티뉴로 무기가 초기화된다', () => {
+  it('잔기가 남아 있으면 아무것도 묻지 않고 되살린다 — 재시작 마찰이 재시도율을 깎는다', () => {
+    const w = fresh()
+    const dead: World = {
+      ...w,
+      vitals: { ...w.vitals, dead: true, lives: 2 },
+      respawnTicks: 1,
+    }
+    const step = stepWorld(dead, INITIAL_INPUT, balance)
+
+    expect(step.world.gameOver).toBe(false)
+    expect(step.world.vitals.dead).toBe(false)
+    expect(step.events.gameOver).toBe(false)
+  })
+
+  it('잔기를 다 쓰면 멈추고 기다린다 — 자동으로 이어 하지 않는다', () => {
     const w = fresh()
     const broke: World = {
       ...w,
@@ -139,8 +155,53 @@ describe('사망과 부활', () => {
       respawnTicks: 1,
     }
     const step = stepWorld(broke, INITIAL_INPUT, balance)
-    expect(step.world.weaponId).toBe('lance')
-    expect(step.world.vitals.lives).toBe(3)
+
+    expect(step.world.gameOver).toBe(true)
+    expect(step.events.gameOver).toBe(true)
+    // 아직 부활하지 않았다
+    expect(step.world.vitals.dead).toBe(true)
+    expect(step.world.weaponId).toBe('axe')
+  })
+
+  it('게임 오버 이벤트는 한 번만 뜬다', () => {
+    const w = fresh()
+    let world: World = {
+      ...w,
+      vitals: { ...w.vitals, dead: true, lives: 0 },
+      respawnTicks: 1,
+    }
+    let fired = 0
+    for (let i = 0; i < 10; i += 1) {
+      const step = stepWorld(world, INITIAL_INPUT, balance)
+      world = step.world
+      if (step.events.gameOver) fired += 1
+    }
+    expect(fired).toBe(1)
+  })
+
+  it('이어 하면 잔기와 무기가 초기화되고 체크포인트에서 다시 시작한다', () => {
+    const w = fresh()
+    const past = STAGE_1.checkpoints[0]!
+    const over: World = {
+      ...w,
+      weaponId: 'axe',
+      player: { ...w.player, body: { ...w.player.body, x: past.tx * 16 + 100 } },
+      vitals: { ...w.vitals, dead: true, lives: 0 },
+      gameOver: true,
+    }
+    const resumed = continueFrom(over, balance)
+
+    expect(resumed.gameOver).toBe(false)
+    expect(resumed.vitals.dead).toBe(false)
+    expect(resumed.vitals.lives).toBe(3)
+    expect(resumed.weaponId).toBe('lance')
+    // 지나온 거리는 잃지 않는다 — 체크포인트에서 이어 한다
+    expect(resumed.player.body.x).toBe(past.tx * 16)
+  })
+
+  it('게임 오버가 아니면 이어 하기는 아무 일도 안 한다', () => {
+    const w = fresh()
+    expect(continueFrom(w, balance)).toBe(w)
   })
 })
 

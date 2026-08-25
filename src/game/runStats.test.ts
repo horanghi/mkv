@@ -8,7 +8,7 @@ import type { WorldEvents } from './world.ts'
 const QUIET: WorldEvents = {
   armorBroke: false, died: false, hurt: false, enemiesKilled: 0,
   bossHit: 0, bossKilled: false, quake: false, fired: false, landed: false,
-  grimmTookOff: false, cause: null,
+  grimmTookOff: false, gameOver: false, cause: null,
 }
 
 function run(
