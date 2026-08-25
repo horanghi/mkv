@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { INITIAL_INPUT, advanceInput, frameOf, type Action, type InputState } from '../core/input.ts'
+import { REVEAL_MS } from '../fx/fade.ts'
+import { DEATH, DEATH_TIMING } from '../fx/sequence.ts'
+import { DEATH_TIMELINE } from '../ui/hud/hud.ts'
 import { loadBalance } from '../data/load.ts'
 import { STAGE_1 } from '../data/stages/stage1.ts'
 import { CAIRN } from '../entities/bosses/cairn.ts'
@@ -471,5 +474,37 @@ describe('제한 시간', () => {
   it('이어하기도 시계를 되감는다', () => {
     const over = { ...almostOut(1), gameOver: true, elapsedTicks: 12345 }
     expect(continueFrom(over, balance).elapsedTicks).toBe(0)
+  })
+})
+
+/**
+ * 사망 → 조작 3초 예산을 **실제 상수에서** 계산한다.
+ *
+ * `ui/hud/hud.ts` 의 `DEATH_TIMELINE` 은 docs/09 의 표를 옮겨 적은 명세이고,
+ * 그 테스트는 명세를 자기 자신과 대조한다 — `RESPAWN_DELAY_TICKS` 를 200 으로
+ * 바꿔도 통과한다. 여기서는 **재생에 실제로 쓰이는 값**만 가지고 잰다.
+ *
+ * → prompts/m1-gate.md "사망 → 조작 가능 3초 이하" · docs/02 2.6
+ */
+describe('사망 → 조작 3초 예산', () => {
+  /** 히트스톱은 로직을 멈추므로 실제 시간으로 더해진다. */
+  const hitstopMs = DEATH_TIMING.hitstopMs
+  const respawnMs = (RESPAWN_DELAY_TICKS / 60) * 1000
+  const playableMs = hitstopMs + respawnMs
+
+  it('조작이 돌아오기까지 3초를 넘지 않는다', () => {
+    expect(playableMs).toBeLessThan(3000)
+  })
+
+  it('화면이 완전히 걷히기까지도 3초 안이다', () => {
+    expect(playableMs + REVEAL_MS).toBeLessThan(3000)
+  })
+
+  it('docs/09 가 적어 둔 표보다 늦지 않다', () => {
+    expect(playableMs).toBeLessThanOrEqual(DEATH_TIMELINE.playableAtMs)
+  })
+
+  it('연출이 끝난 뒤에 조작이 돌아온다 — 먼저 돌아오면 연출이 잘린다', () => {
+    expect(playableMs).toBeGreaterThanOrEqual(DEATH.durationMs)
   })
 })

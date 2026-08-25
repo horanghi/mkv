@@ -93,6 +93,11 @@ export function formatScore(score: number): string {
 /**
  * docs/09 의 표를 그대로 옮긴 것이다. **총 1.85초에 조작 가능해진다.**
  * 3초 예산 안이고, 잔기가 남아 있으면 어떤 UI 도 끼어들지 않는다.
+ *
+ * **여기 적힌 수치가 게임을 움직이지는 않는다.** 실제 재생은
+ * `fx/sequence.ts` 의 `DEATH` 와 `game/world.ts` 의 `RESPAWN_DELAY_TICKS` 가
+ * 정한다. 이 표는 명세이므로 자기 자신과 대조해서는 아무것도 지킬 수 없다 —
+ * 실제 상수와의 대조는 `game/world.test.ts` "사망 → 조작 3초 예산" 이 한다.
  */
 export const DEATH_TIMELINE = {
   hitstopMs: 250,
