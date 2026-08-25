@@ -1,4 +1,4 @@
-import type { Rank, Results, Rolling } from '../../game/results.ts'
+import { stampAt, type Rank, type Results, type Rolling } from '../../game/results.ts'
 
 /**
  * 스테이지 클리어 결과 화면.
@@ -58,7 +58,9 @@ export class ResultsScreen {
     ].join(';')
 
     this.rank = document.createElement('div')
-    this.rank.style.cssText = 'font-size:34px;letter-spacing:.2em;opacity:0;transition:opacity .18s ease'
+    // transition 을 걸지 않는다. 도장 애니메이션은 프레임마다 값을 직접 준다 —
+    // CSS 보간과 섞이면 히트스톱(정지 구간)이 뭉개진다.
+    this.rank.style.cssText = 'font-size:34px;letter-spacing:.2em;opacity:0;will-change:transform'
 
     this.continueButton = document.createElement('button')
     this.continueButton.type = 'button'
@@ -116,7 +118,22 @@ export class ResultsScreen {
 
     this.rank.textContent = `RANK  ${results.rank}`
     this.rank.style.color = RANK_COLOR[results.rank]
-    this.rank.style.opacity = rolling.rankVisible ? '1' : '0'
+
+    if (!rolling.rankVisible) {
+      this.rank.style.opacity = '0'
+      this.rank.style.transform = 'none'
+      this.rank.style.textShadow = 'none'
+      return
+    }
+
+    const stamp = stampAt(rolling.stampMs, results.rank)
+    this.rank.style.opacity = String(stamp.opacity)
+    this.rank.style.transform =
+      `translate(${stamp.shakeX.toFixed(2)}px, ${stamp.shakeY.toFixed(2)}px) scale(${stamp.scale.toFixed(3)})`
+    // S 랭크만 빛난다.
+    this.rank.style.textShadow = stamp.glow > 0
+      ? `0 0 ${(10 + stamp.glow * 22).toFixed(0)}px rgba(240,192,74,${(stamp.glow * 0.9).toFixed(2)})`
+      : 'none'
   }
 }
 
