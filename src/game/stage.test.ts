@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { TILE, tileAt } from '../physics/tilemap.ts'
+import { INITIAL_INPUT, advanceInput, frameOf, type Action, type InputState } from '../core/input.ts'
 import { loadBalance } from '../data/load.ts'
 import { SECTION_START, STAGE_1 } from '../data/stages/stage1.ts'
-import type { EnemyKind } from '../entities/enemies/enemy.ts'
+import { ENEMY_SPECS, boxOfEnemy, type EnemyKind } from '../entities/enemies/enemy.ts'
+import { GRIMM } from '../entities/enemies/grimm.ts'
+import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../core/config.ts'
+import { viewOf } from './camera.ts'
 import { DIFFICULTIES, applyDifficultyToStage } from './difficulty.ts'
+import { createWorld, stepWorld } from './world.ts'
 import type { Stage } from './stage.ts'
 import {
   checkpointGapsSeconds,
@@ -251,4 +256,102 @@ describe('적 배치', () => {
   it('보스룸에는 잡몹을 두지 않는다 — 패턴을 읽는 것이 전부다', () => {
     expect(STAGE_1.enemies.filter((e) => e.tx >= SECTION_START.boss)).toEqual([])
   })
+})
+
+describe('그림 — 화면 밖에서 죽이지 않는다', () => {
+  /**
+   * docs/05 5.1-4 와 5.2 의 "공정성 장치".
+   *
+   * **`stepGrimm` 이 규칙을 지키는지는 여기서 보지 않는다** — `enemy.test.ts`
+   * 가 본다. 여기서 보는 것은 그 규칙이 **뜻을 유지하는가**다.
+   *
+   * 규칙이 멀쩡해도 화면 가장자리에서 깨어나면 "먼저 보인다"가 성립하지
+   * 않는다. 보자마자 날아오는 것과 같다. 그게 무너지면 게이트에
+   * "그림에게만 죽음" 으로 나타나고, 그건 어려운 게 아니라 부당한 것이다.
+   * → prompts/m1-gate.md "재시도율이 낮을 때"
+   */
+
+  /** docs/05 5.1-4 가 스폰에 요구하는 가장자리 여백과 같은 값을 쓴다. */
+  const EDGE_MARGIN_PX = 32
+
+  it('어그로 반경이 화면 가장자리에 닿지 못한다 — 이게 진짜 안전장치다', () => {
+    // 카메라가 플레이어를 가운데 두므로 가장자리까지는 화면 폭의 절반이다.
+    // 어그로가 거기까지 닿지 못하는 한, 그림은 가장자리에서 깨어날 수 없다.
+    //
+    // 이 여유가 사라지는 순간 `isVisible` 검사는 통과하지만 "먼저 보인다"는
+    // 거짓이 된다. aggroRadius 를 올리거나 논리 해상도를 줄이면 여기서 걸린다.
+    const reach = GRIMM.aggroRadius + ENEMY_SPECS.grimm.width
+    const toEdge = LOGICAL_WIDTH / 2
+
+    expect(toEdge - reach).toBeGreaterThanOrEqual(EDGE_MARGIN_PX)
+  })
+
+  it('세로로는 화면 밖이라 할 것이 없다 — 맵이 화면보다 2px 높다', () => {
+    // 세로 스크롤이 사실상 없다는 뜻이다. 맵이 화면보다 훨씬 높아지면
+    // 위아래로도 같은 검사가 필요해진다.
+    const mapHeightPx = STAGE_1.map.height * STAGE_1.map.tileSize
+    expect(mapHeightPx - LOGICAL_HEIGHT).toBeLessThan(STAGE_1.map.tileSize)
+  })
+
+  it('실제로 지나가 보면 화면 한참 안쪽에서 깨어난다', () => {
+    // 위의 두 검사는 수치가 어긋나는 것을 잡고, 이것은 배치와 카메라가
+    // 어긋나는 것을 잡는다. 봇이 지나가며 실제로 잰다.
+    const observed = takeOffs()
+
+    expect(observed.length).toBeGreaterThan(0)   // 아무도 안 깨면 빈 통과다
+    const nearEdge = observed.filter((t) => t.marginPx < EDGE_MARGIN_PX)
+    expect({ 가장자리에서_이륙: nearEdge }).toEqual({ 가장자리에서_이륙: [] })
+  })
+
+  interface TakeOff {
+    readonly id: number
+    readonly tick: number
+    readonly marginPx: number
+  }
+
+  /** 봇으로 스테이지를 지나며 그림이 대기를 푸는 순간을 모은다. */
+  function takeOffs(): readonly TakeOff[] {
+    const balance = loadBalance()
+    let world = createWorld(STAGE_1, balance)
+    let input: InputState = INITIAL_INPUT
+    const size = STAGE_1.map.tileSize
+    const groundRow = STAGE_1.map.height - 1
+    const gapAhead = (x: number): boolean =>
+      tileAt(STAGE_1.map, Math.floor((x + 14) / size), groundRow) === TILE.empty
+
+    // **적의 id 로 센다.** 배열 인덱스로 세면 적이 빠질 때 자리가 밀려
+    // 엉뚱한 적의 상태 변화를 이륙으로 읽는다. 실제로 한 번 속았다.
+    const previous = new Map<number, string>()
+    const found: TakeOff[] = []
+
+    for (let tick = 0; tick < 60 * 400; tick += 1) {
+      const body = world.player.body
+      const actions: Action[] = ['right']
+      if (body.onGround && gapAhead(body.x)) actions.push('jump')
+      if (tick % 7 < 3) actions.push('attack')
+
+      input = advanceInput(input, frameOf(...actions))
+      const step = stepWorld(world, input, balance)
+      world = step.world
+      input = step.input
+
+      const view = viewOf(world.camera)
+      for (const enemy of world.enemies) {
+        if (enemy.kind === 'grimm' && previous.get(enemy.id) === 'dormant'
+            && enemy.state !== 'dormant') {
+          const box = boxOfEnemy(enemy)
+          found.push({
+            id: enemy.id,
+            tick,
+            marginPx: Math.min(
+              box.x - view.x,
+              view.x + view.width - (box.x + box.width),
+            ),
+          })
+        }
+        previous.set(enemy.id, enemy.state)
+      }
+    }
+    return found
+  }
 })
