@@ -26,6 +26,33 @@
         "--strictPort"
       ],
       "port": 4173
+    },
+    {
+      "name": "minchan-land",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4180",
+        "--directory",
+        "/Users/jude/projects/personal/minchan"
+      ],
+      "port": 4180
+    },
+    {
+      "name": "mkv-src-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/jude/projects/personal/minchan/mkv-src",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
+      "port": 5199
     }
   ]
 }

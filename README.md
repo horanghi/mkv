@@ -1,5 +1,12 @@
 # 마령촌 · GRIMHOLLOW
 
+> **소스가 옮겨졌다.** 이제 [민찬 게임랜드](https://changame.vercel.app) 저장소
+> 안(`mkv-src/`)에서 관리한다. 플레이는 **https://changame.vercel.app/mkv/** 에서 한다.
+>
+> 이 저장소는 그 시점까지의 이력을 담은 **보관본**이다. 여기 있는 코드와
+> `mkv-five.vercel.app` 배포본은 갱신되지 않으므로, 플레이테스트에 쓰지 않는다 —
+> 어느 빌드에서 잰 숫자인지 갈려 버린다.
+
 마계촌(Ghosts 'n Goblins) 계보의 웹 기반 하드코어 2D 액션 플랫포머.
 
 **현재 M1 구현 완료, `m1-gate` 대기.** 검증할 질문은 하나다 —
