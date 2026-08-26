@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_DIFFICULTY, DIFFICULTIES, rulesFor } from '../game/difficulty.ts'
 import { EMPTY_FRAMES, WARMUP_FRAMES, pushFrame, type FrameStats } from './frames.ts'
 import {
   GATE, MIN_DEATHS, MIN_FRAMES,
@@ -165,5 +166,31 @@ describe('표시', () => {
     expect(formatBytes(512)).toBe('512B')
     expect(formatBytes(2048)).toBe('2.0KB')
     expect(formatBytes(8 * 1024 * 1024)).toBe('8.00MB')
+  })
+})
+
+describe('설문 노출 문턱과 잔기의 관계', () => {
+  /**
+   * 실제로 밟아 보고 알았다 — **게임 오버가 설문 버튼보다 먼저 온다.**
+   *
+   * 게이트 난이도(기사)는 잔기가 3이라 네 번째 사망에서 GAME OVER 가 뜨는데,
+   * "결과 보내기" 는 다섯 번째 사망에야 나온다. 테스터가 가장 그만두기 쉬운
+   * 자리에서 결과를 보낼 방법이 없다는 뜻이고, 그러면 표본이 0이 된다.
+   *
+   * 그래서 `main.ts` 가 게임 오버에서도 버튼을 드러낸다. 이 테스트는 그
+   * 배선이 **왜 필요한지**를 붙잡아 둔다 — 잔기나 MIN_DEATHS 가 바뀌어
+   * 관계가 뒤집히면 여기서 걸리고, 그때 배선을 다시 판단하면 된다.
+   */
+  it('게임 오버가 설문 노출보다 먼저 온다 — 그래서 거기서도 열어야 한다', () => {
+    const lives = rulesFor(DEFAULT_DIFFICULTY).lives
+    expect(lives).toBeLessThan(MIN_DEATHS)
+  })
+
+  it('어느 난이도가 그 배선에 기대고 있는지 적어 둔다', () => {
+    // 잔기가 MIN_DEATHS 보다 적은 난이도에서만 게임 오버가 먼저 온다.
+    // 종자(잔기 5)는 다섯 번째 사망에서 버튼이 먼저 나오므로 해당 없다.
+    const dependsOnGameOver = DIFFICULTIES.filter((id) => rulesFor(id).lives < MIN_DEATHS)
+
+    expect(dependsOnGameOver).toEqual(['knight', 'paladin'])
   })
 })

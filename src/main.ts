@@ -595,7 +595,11 @@ app.ticker.add(() => {
 
   // --- 게임 오버 -----------------------------------------------------------
   // 잔기가 남아 있으면 여기까지 오지 않는다. 일반 사망에는 아무것도 끼어들지 않는다.
-  if (world.gameOver && !gameOverScreen.isOpen) gameOverScreen.open()
+  if (world.gameOver && !gameOverScreen.isOpen) {
+    gameOverScreen.open()
+    // 여기가 테스터가 그만두기 가장 쉬운 자리다. 결과를 보낼 길을 열어 둔다.
+    playtest.revealEntry()
+  }
 
   // --- 결과 화면 -----------------------------------------------------------
   if (world.cleared && results === null) {
