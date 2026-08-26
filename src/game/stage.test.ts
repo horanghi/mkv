@@ -6,7 +6,7 @@ import { SECTION_START, STAGE_1 } from '../data/stages/stage1.ts'
 import { ENEMY_SPECS, boxOfEnemy, type EnemyKind } from '../entities/enemies/enemy.ts'
 import { GRIMM } from '../entities/enemies/grimm.ts'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../core/config.ts'
-import { viewOf } from './camera.ts'
+import { CAMERA, viewOf } from './camera.ts'
 import { DIFFICULTIES, applyDifficultyToStage } from './difficulty.ts'
 import { createWorld, stepWorld } from './world.ts'
 import type { Stage } from './stage.ts'
@@ -275,13 +275,21 @@ describe('그림 — 화면 밖에서 죽이지 않는다', () => {
   const EDGE_MARGIN_PX = 32
 
   it('어그로 반경이 화면 가장자리에 닿지 못한다 — 이게 진짜 안전장치다', () => {
-    // 카메라가 플레이어를 가운데 두므로 가장자리까지는 화면 폭의 절반이다.
-    // 어그로가 거기까지 닿지 못하는 한, 그림은 가장자리에서 깨어날 수 없다.
+    // 그림은 어그로 반경 안에 들어와야 깨어난다. 그 반경이 화면 가장자리에
+    // 닿지 못하는 한, 가장자리에서 깨어나는 일 자체가 생길 수 없다.
     //
-    // 이 여유가 사라지는 순간 `isVisible` 검사는 통과하지만 "먼저 보인다"는
-    // 거짓이 된다. aggroRadius 를 올리거나 논리 해상도를 줄이면 여기서 걸린다.
+    // **플레이어는 화면 가운데에 있지 않다.** 데드존 안에서 카메라가 가만히
+    // 있고, 진행 방향으로 선행까지 붙는다. 둘을 빼지 않고 화면 절반으로
+    // 계산하면 실제보다 여유를 64px 더 잡게 된다.
+    //
+    // 여기가 무너지면 `isVisible` 은 통과하지만 "먼저 보인다"가 거짓이 된다.
+    // aggroRadius·lookAhead·데드존을 키우거나 해상도를 줄이면 걸린다.
+    //
+    // (스테이지 양 끝에서는 카메라가 물려 플레이어가 더 치우치지만, 그쪽
+    //  화면 밖은 맵 바깥이라 그림이 있을 수 없다.)
+    const offCenter = CAMERA.deadzoneWidth / 2 + CAMERA.lookAhead
     const reach = GRIMM.aggroRadius + ENEMY_SPECS.grimm.width
-    const toEdge = LOGICAL_WIDTH / 2
+    const toEdge = LOGICAL_WIDTH / 2 - offCenter
 
     expect(toEdge - reach).toBeGreaterThanOrEqual(EDGE_MARGIN_PX)
   })
