@@ -24,7 +24,7 @@ import { skeletonizeFrame } from './fx/dissolve.ts'
 import { RELIC_LIGHT, limitLights, type Light } from './fx/light.ts'
 import { ARMOR_BREAK_TIMING, DEATH_TIMING } from './fx/sequence.ts'
 import { QUALITY_TIERS, createQuality, featuresFor, observeFps, setManual, type QualityState } from './fx/quality.ts'
-import { continueFrom, createWorld, stepWorld, type DamageCause, type World } from './game/world.ts'
+import { continueFrom, createWorld, stepWorld, type World } from './game/world.ts'
 import { sectionAt } from './game/stage.ts'
 import {
   RUNNING, countdownNumber, isMenuOpen, isPlayable, pause as pauseGame,
@@ -61,6 +61,7 @@ import {
 import { INITIAL_HUD, stepHud, type HudState } from './ui/hud/hud.ts'
 import { KeyboardNotice } from './ui/menus/keyboardNotice.ts'
 import { NO_FADE, stepFade, type Fade } from './fx/fade.ts'
+import { EMPTY_TALLY, tally } from './telemetry/frameTally.ts'
 import { Playtest } from './ui/report/playtest.ts'
 import { PauseMenu } from './ui/menus/pauseMenu.ts'
 import { ResultsScreen } from './ui/menus/resultsScreen.ts'
@@ -424,11 +425,8 @@ app.ticker.add(() => {
   }
 
   // 이 프레임 안에서 여러 틱이 돌 수 있다. 계측은 프레임 단위로 한 번 넘긴다.
-  let diedThisFrame = false
-  let hurtThisFrame = false
-  let brokeThisFrame = false
-  let respawnedThisFrame = false
-  let causeThisFrame: DamageCause | null = null
+  // 접는 규칙은 `telemetry/frameTally.ts` 에 있다 — 여기 두면 테스트가 안 된다.
+  let frameTally = EMPTY_TALLY
 
   // 슬로우모션·프레임 스텝은 여기서만 적용된다. 로직은 자기가 느려진 줄 모른다.
   const slice = consumeTime(timeControl, frameMs)
@@ -454,18 +452,13 @@ app.ticker.add(() => {
     input = result.input
     // 부활은 틱 단위로 본다. 프레임 앞뒤만 비교하면, 부활한 틱과 다시 죽은 틱이
     // 같은 프레임에 들어올 때 조작 복귀가 통째로 안 보인다.
-    if (deadBefore && !world.vitals.dead) respawnedThisFrame = true
+    frameTally = tally(frameTally, result.events, deadBefore, world.vitals.dead)
 
     run = stepRun(run, {
       events: result.events,
       sectionIndex: sectionAt(stage, world.player.body.x),
       armor: spriteStateOf(world.vitals),
     })
-
-    if (result.events.hurt) hurtThisFrame = true
-    if (result.events.died) diedThisFrame = true
-    if (result.events.armorBroke) brokeThisFrame = true
-    if (result.events.cause !== null) causeThisFrame = result.events.cause
 
     if (result.events.armorBroke || result.events.died) {
       startBreak(armorBefore, result.events.died)
@@ -628,11 +621,11 @@ app.ticker.add(() => {
     cleared: world.cleared,
     bossAwake: world.cairn.awake,
     pressed: polled !== 0,
-    respawned: respawnedThisFrame,
-    died: diedThisFrame,
-    hurt: hurtThisFrame,
-    armorBroke: brokeThisFrame,
-    cause: causeThisFrame,
+    respawned: frameTally.respawned,
+    died: frameTally.died,
+    hurt: frameTally.hurt,
+    armorBroke: frameTally.armorBroke,
+    cause: frameTally.cause,
   })
 })
 
