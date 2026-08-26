@@ -24,8 +24,10 @@ import { EMPTY_FRAMES, type FrameStats } from './frames.ts'
  *   세어지고 있었으므로, v1 기록의 `retried` 는 재시도율을 낮게 만든다.
  * - v2 → v3: 난이도를 기록한다. v2 기록은 어느 난이도에서 잰 것인지 알 수
  *   없어 "첫 클리어 몇 회"를 읽을 수 없다.
+ * - v3 → v4: 꾸러미에 빌드 식별자가 생겼다. v3 기록은 어느 빌드에서 잰
+ *   것인지 알 수 없다 — 배포 경로가 둘이 되면서 갈릴 수 있게 됐다.
  */
-export const SESSION_VERSION = 3
+export const SESSION_VERSION = 4
 
 /**
  * 조작이 돌아온 뒤 이 시간 안에 입력이 들어오면 "즉시 재시도"로 본다.

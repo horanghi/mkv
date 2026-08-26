@@ -6,7 +6,7 @@ import type { Payload } from './payload.ts'
 
 function tester(patch: Partial<Payload> & { id: string }): Payload {
   return {
-    v: 3, diff: GATE_DIFFICULTY, playMin: 10, deaths: 10, retryRate: 1, attempts: 11, cleared: true,
+    v: 4, diff: GATE_DIFFICULTY, build: 'aaaaaaaa', playMin: 10, deaths: 10, retryRate: 1, attempts: 11, cleared: true,
     bossReached: true, hurts: 20, armorBreaks: 6,
     fps: { held: 1, p95: 17, avg: 60, samples: 20000, worst: 30 },
     loadKB: 620, worstRespawnMs: 1750,
@@ -264,22 +264,22 @@ describe('난이도가 섞인 결과', () => {
 
 describe('낡은 형식', () => {
   it('버전이 다른 꾸러미는 뺀다 — 같은 자리에 다른 뜻의 숫자가 있다', () => {
-    const agg = aggregate([...passingFive(), tester({ id: 'old', v: 2, retryRate: 0.2, deaths: 50 })])
+    const agg = aggregate([...passingFive(), tester({ id: 'old', v: 3, retryRate: 0.2, deaths: 50 })])
     expect(agg.testers).toBe(5)
     expect(agg.staleDropped).toBe(1)
-    expect(agg.stale).toEqual([[2, 1]])
+    expect(agg.stale).toEqual([[3, 1]])
   })
 
   it('여러 버전이 섞이면 많은 순으로 적는다', () => {
     const agg = aggregate([
       ...passingFive(),
-      tester({ id: 'o1', v: 2 }), tester({ id: 'o2', v: 1 }), tester({ id: 'o3', v: 2 }),
+      tester({ id: 'o1', v: 3 }), tester({ id: 'o2', v: 1 }), tester({ id: 'o3', v: 3 }),
     ])
-    expect(agg.stale).toEqual([[2, 2], [1, 1]])
+    expect(agg.stale).toEqual([[3, 2], [1, 1]])
   })
 
   it('낡은 꾸러미의 숫자는 어느 집계에도 안 들어간다', () => {
-    const mixed = aggregate([...passingFive(), tester({ id: 'old', v: 2, retryRate: 0, deaths: 500 })])
+    const mixed = aggregate([...passingFive(), tester({ id: 'old', v: 3, retryRate: 0, deaths: 500 })])
     const clean = aggregate(passingFive())
     expect(mixed.retryRate).toBe(clean.retryRate)
     expect(mixed.totalDeaths).toBe(clean.totalDeaths)
@@ -288,7 +288,7 @@ describe('낡은 형식', () => {
   it('낡은 것으로 인원을 채워도 표본부족이다', () => {
     const agg = aggregate([
       ...Array.from({ length: 4 }, (_, i) => tester({ id: `t${i}` })),
-      tester({ id: 'old', v: 2 }),
+      tester({ id: 'old', v: 3 }),
     ])
     expect(overall(gateVerdict(agg))).toBe('unknown')
   })
@@ -301,5 +301,31 @@ describe('사망 구간 겹쳐 보기', () => {
       tester({ id: 'b', hotspots: [] }),
     ])
     expect(agg.hotspots).toEqual([[48, 9], [16, 3], [80, 3]])
+  })
+})
+
+describe('빌드가 섞였을 때', () => {
+  it('한 빌드면 하나로 적는다', () => {
+    expect(aggregate(passingFive()).builds).toEqual([['aaaaaaaa', 5]])
+  })
+
+  it('둘 이상이면 많은 순으로 적는다', () => {
+    const agg = aggregate([
+      ...passingFive(),
+      tester({ id: 'x', build: 'bbbbbbbb' }),
+      tester({ id: 'y', build: 'bbbbbbbb' }),
+    ])
+    expect(agg.builds).toEqual([['aaaaaaaa', 5], ['bbbbbbbb', 2]])
+  })
+
+  it('버리지는 않는다 — 오타 수정과 밸런스 변경을 기계가 못 가른다', () => {
+    const mixed = aggregate([...passingFive(), tester({ id: 'x', build: 'bbbbbbbb' })])
+    expect(mixed.testers).toBe(6)
+    expect(overall(gateVerdict(mixed))).toBe('pass')
+  })
+
+  it('빌드가 비어 있으면 개발 빌드로 적는다', () => {
+    const agg = aggregate([...passingFive(), tester({ id: 'x', build: '' })])
+    expect(agg.builds).toContainEqual(['dev', 1])
   })
 })

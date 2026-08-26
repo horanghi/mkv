@@ -1,3 +1,4 @@
+import { buildId } from './build.ts'
 import { averageFps, heldRate, percentileMs } from './frames.ts'
 import { causeBreakdown, deathHotspots } from './report.ts'
 import { retryRate, worstControlBackMs, type Session } from './session.ts'
@@ -16,6 +17,8 @@ export interface Payload {
   readonly v: number
   /** 잰 난이도. 이게 없으면 "첫 클리어 몇 회"를 읽을 수 없다. */
   readonly diff: string
+  /** 잰 빌드. 밸런스를 만지면 그 전후는 다른 게임이다. */
+  readonly build: string
   readonly playMin: number
   readonly deaths: number
   /** 판정이 끝난 사망만 분모에 넣은 즉시 재시도율 */
@@ -54,6 +57,7 @@ export function toPayload(session: Session, loadBytes: number | null): Payload {
     id: session.id,
     v: session.version,
     diff: session.difficulty,
+    build: buildId(),
     playMin: round(session.playMs / 60000, 1),
     deaths: session.deaths.length,
     retryRate: judged === 0 ? null : round(retryRate(session), 3),

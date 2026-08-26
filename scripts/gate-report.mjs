@@ -87,6 +87,12 @@ if (agg.staleDropped > 0) {
   console.log(`  \x1b[33m낡은 형식이라 뺀 것 ${agg.staleDropped}건 (${versions}).`)
   console.log(`  재는 방식이 바뀌었으므로 합칠 수 없다 — 다시 받아야 한다.${RESET}`)
 }
+if (agg.builds.length > 1) {
+  const spread = agg.builds.map(([id, n]) => `${id} ${n}명`).join(', ')
+  console.log(`  \x1b[33m빌드가 갈렸다 — ${spread}.`)
+  console.log(`  밸런스를 만진 사이라면 다른 게임을 잰 것이다. 아니라면 그냥 합쳐도 된다.`)
+  console.log(`  기계가 가를 수 없어 빼지 않았다 — 사람이 판단한다.${RESET}`)
+}
 if (agg.offDifficultyDropped > 0) {
   const where = agg.offDifficulty
     .map(([diff, n]) => `${DIFFICULTY_RULES[diff]?.name ?? diff} ${n}명`)

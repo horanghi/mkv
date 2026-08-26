@@ -1,4 +1,5 @@
 import { DEFAULT_DIFFICULTY } from '../game/difficulty.ts'
+import { UNKNOWN_BUILD } from './build.ts'
 import { GATE, MIN_DEATHS, type Verdict } from './report.ts'
 import { SESSION_VERSION } from './session.ts'
 import type { Payload } from './payload.ts'
@@ -53,6 +54,14 @@ export interface Aggregate {
   readonly staleDropped: number
   /** 뺀 것들이 어느 버전이었나. [버전, 인원] */
   readonly stale: readonly (readonly [number, number])[]
+  /**
+   * 어느 빌드에서 잰 것들인가. [빌드, 인원] — 많은 순.
+   *
+   * 둘 이상이면 **사람이 판단해야 한다.** 오타 하나 고친 빌드와 밸런스를
+   * 바꾼 빌드를 기계가 구분할 수 없으므로 자동으로 버리지 않는다.
+   * 난이도·버전과 다른 점이다 — 그 둘은 다르면 무조건 못 섞는다.
+   */
+  readonly builds: readonly (readonly [string, number])[]
   /** 게이트 난이도가 아니라서 뺀 수 */
   readonly offDifficultyDropped: number
   /** 뺀 것들이 어느 난이도였나. [난이도, 인원] */
@@ -132,6 +141,12 @@ export function aggregate(payloads: readonly Payload[]): Aggregate {
     }
   }
 
+  const buildCounts = new Map<string, number>()
+  for (const p of unique) {
+    const id = p.build === '' ? UNKNOWN_BUILD : p.build
+    buildCounts.set(id, (buildCounts.get(id) ?? 0) + 1)
+  }
+
   const loads = unique.map((p) => p.loadKB).filter((k): k is number => k !== null)
 
   return {
@@ -152,6 +167,7 @@ export function aggregate(payloads: readonly Payload[]): Aggregate {
       .map(([tx, count]) => [tx, count] as const)
       .sort((a, b) => b[1] - a[1] || a[0] - b[0]),
     causes,
+    builds: [...buildCounts.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)),
     duplicatesDropped,
     staleDropped: received.length - all.length,
     stale: [...staleCounts.entries()].sort((a, b) => b[1] - a[1]),
